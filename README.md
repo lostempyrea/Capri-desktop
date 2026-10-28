@@ -65,9 +65,6 @@ Unlike intrusive overlay tools, Capri lives primarily inside a lightweight, circ
 * **Zero Button Clutter**: Manual start/stop recording is eliminated in favor of instant voice commands:
   * *"record that"*
   * *"clip that"*
-  * *"clip that shit"*
-  * *"lưu lại pha vừa rồi"*
-  * *"clip lại đi"*
 * Saved clips are exported straight to your `Videos/Capri_Clips/` directory with timestamped MP4s.
 
 ### 7. Multi-Provider AI LLM Vault
@@ -132,7 +129,7 @@ Unlike intrusive overlay tools, Capri lives primarily inside a lightweight, circ
 | Action | Voice Trigger (EN / VI) | Shortcut |
 | :--- | :--- | :--- |
 | **Wake Up / Listen** | `"Hey Capri"`, `"Hi Capri"`, `"Capri ơi"` | Click Mic `🎙️` |
-| **Instant Replay Clip** | `"record that"`, `"clip that"`, `"lưu lại pha vừa rồi"`, `"clip lại đi"` | — |
+| **Instant Replay Clip** | `"record that"`, `"clip that"` | — |
 | **Open Chat & Settings** | Click Biochip Core | `Ctrl + Shift + C` |
 | **Quick Prompt** | Hover over Biochip -> Type in Quick-Input | `Enter` |
 | **Drag Status Ticker** | Mouse Drag or `Alt + Click Drag` | — |
