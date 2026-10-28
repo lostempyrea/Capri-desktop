@@ -1,3 +1,7 @@
+<p align="center">
+  <strong>English</strong> · <a href="README.vi.md">Tiếng Việt</a>
+</p>
+
 # ⚡ Capri Desktop — Cyberpunk Edition
 
 <p align="center">
@@ -10,7 +14,7 @@
   <a href="https://www.electronjs.org/"><img src="https://img.shields.io/badge/Electron-44.x-47848F?logo=electron&logoColor=white" alt="Electron" /></a>
   <a href="package.json"><img src="https://img.shields.io/badge/Version-1.3.3--cyberpunk--edition-00f0ff?style=flat-square" alt="Version" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square" alt="License" /></a>
-  <a href="README.fr.md"><img src="https://img.shields.io/badge/Lang-Français-ff007f.svg?style=flat-square" alt="French" /></a>
+  <a href="README.vi.md"><img src="https://img.shields.io/badge/Ngôn_ngữ-Tiếng_Việt-ff0055?style=flat-square" alt="Tiếng Việt" /></a>
 </p>
 
 ---
