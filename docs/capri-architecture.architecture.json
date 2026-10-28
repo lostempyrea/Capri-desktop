@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Capri Desktop Inter-Module Architecture & Dataflow",
+    "output": "docs/capri-architecture.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    { "id": "agent_bridge", "type": "backend", "label": "agent-bridge.js", "sublabel": "TCP lock :43224 / fs.watch", "pos": [40, 200], "size": [150, 64], "tag": "Daemon" },
+    { "id": "main_process", "type": "cloud", "label": "main.js", "sublabel": "IPC Hub & Process Lifecycle", "pos": [260, 200], "size": [160, 64], "tag": "Electron Main" },
+    { "id": "app_hub", "type": "security", "label": "app.js", "sublabel": "Hit-test & Event Dispatcher", "pos": [490, 200], "size": [160, 64], "tag": "Renderer Bus" },
+    { "id": "voice_input", "type": "backend", "label": "voice-input.js", "sublabel": "VAD Analyser & STT Buffer", "pos": [720, 80], "size": [160, 64], "tag": "WebAudio" },
+    { "id": "chip", "type": "frontend", "label": "chip.js", "sublabel": "Mini Biochip & Beam Base", "pos": [720, 200], "size": [160, 64], "tag": "Single Biochip" },
+    { "id": "capri_stage", "type": "frontend", "label": "capri.js", "sublabel": "Sprite Renderer & Lip-sync", "pos": [720, 320], "size": [160, 64], "tag": "40% Holo-Stage" },
+    { "id": "panel", "type": "frontend", "label": "panel.js", "sublabel": "Command Bar & Comms Hub", "pos": [950, 200], "size": [170, 64], "tag": "HUD Split View" }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Node.js Child Process", "wraps": ["agent_bridge"] },
+    { "kind": "region", "label": "Electron Main Process", "wraps": ["main_process"] },
+    { "kind": "region", "label": "Electron Renderer Context", "wraps": ["app_hub", "voice_input", "chip", "capri_stage", "panel"] }
+  ],
+  "connections": [
+    { "id": "bridge-to-main", "from": "agent_bridge", "to": "main_process", "label": "TCP socket :47823", "variant": "emphasis" },
+    { "id": "main-to-app", "from": "main_process", "to": "app_hub", "label": "IPC preload bridge", "variant": "emphasis" },
+    { "id": "app-to-voice", "from": "app_hub", "to": "voice_input", "label": "mic stream", "fromSide": "top", "toSide": "left", "labelDy": -20 },
+    { "id": "app-to-chip", "from": "app_hub", "to": "chip", "label": "hit-test state", "variant": "emphasis" },
+    { "id": "app-to-capri", "from": "app_hub", "to": "capri_stage", "label": "emotes & RAF", "fromSide": "bottom", "toSide": "left", "labelDy": 20 },
+    { "id": "voice-to-panel", "from": "voice_input", "to": "panel", "label": "RMS & STT", "fromSide": "right", "toSide": "top", "labelDy": -20 },
+    { "id": "chip-to-panel", "from": "chip", "to": "panel", "label": "beam coordinates", "variant": "emphasis" },
+    { "id": "capri-to-panel", "from": "capri_stage", "to": "panel", "label": "talk lip-sync", "fromSide": "right", "toSide": "bottom", "labelDy": 20 }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "IPC & Single-Instance Safety",
+      "items": [
+        "agent-bridge enforces single instance via TCP lock on port 43224 and relays fs.watch events to main.js",
+        "app.js unifies mouse hit-testing so only the active UI areas intercept mouse clicks, leaving other areas click-through"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Hologram Presentation Coupling",
+      "items": [
+        "chip.js anchors the holographic beam projector to the mini biochip icon above the Windows taskbar",
+        "panel.js renders the 36px Cyberpunk Command Bar and coordinates the 40/60 Split View with capri.js"
+      ]
+    }
+  ]
+}

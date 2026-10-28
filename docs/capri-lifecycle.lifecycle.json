@@ -1,0 +1,49 @@
+{
+  "schema_version": 3,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "Capri Hologram & Assistant Lifecycle State Machine",
+    "output": "docs/capri-lifecycle.html",
+    "animation": "trace",
+    "quality_profile": "showcase"
+  },
+  "mainPath": ["stowed", "awake", "projecting", "comms_active", "auto_dismissing"],
+  "states": [
+    { "id": "stowed", "type": "start", "label": "Stowed Mini", "sublabel": "taskbar dock / 1 FPS", "tag": "idle", "step": "01" },
+    { "id": "awake", "type": "active", "label": "Awake Biochip", "sublabel": "shards & audio ring", "tag": "ready", "step": "02" },
+    { "id": "projecting", "type": "active", "label": "Projecting", "sublabel": "SVG beam & spawn HUD", "tag": "hologram", "step": "03" },
+    { "id": "comms_active", "type": "active", "label": "Comms Active", "sublabel": "40/60 Split View & ticker", "tag": "active", "step": "04" },
+    { "id": "interacting", "type": "waiting", "label": "User Interaction", "sublabel": "hover / input typing", "tag": "paused" },
+    { "id": "auto_dismissing", "type": "decision", "label": "Auto-Dismissing", "sublabel": "9s timer expired", "tag": "collapse", "step": "05" },
+    { "id": "vanish", "type": "failure", "label": "Vanish Mode", "sublabel": "zero opacity stealth", "tag": "stealth" }
+  ],
+  "transitions": [
+    { "id": "stowed-awake", "from": "stowed", "to": "awake", "label": "wake event" },
+    { "id": "awake-projecting", "from": "awake", "to": "projecting", "label": "click / Hey Capri" },
+    { "id": "projecting-comms", "from": "projecting", "to": "comms_active", "label": "HUD rendered" },
+    { "id": "comms-dismissing", "from": "comms_active", "to": "auto_dismissing", "label": "timer done" },
+    { "id": "dismissing-awake", "from": "auto_dismissing", "to": "awake", "label": "collapse beam" },
+    { "id": "comms-interacting", "from": "comms_active", "to": "interacting", "label": "mouseenter / focus" },
+    { "id": "interacting-comms", "from": "interacting", "to": "comms_active", "label": "mouseleave / blur" },
+    { "id": "awake-vanish", "from": "awake", "to": "vanish", "label": "voice 'vanish'", "variant": "security" },
+    { "id": "vanish-awake", "from": "vanish", "to": "awake", "label": "Alt+V / summon", "variant": "dashed" }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Primary Hologram Cycle",
+      "items": [
+        "Capri transitions from idle biochip to active holographic projection seamlessly",
+        "Auto-dismiss timer of 9 seconds automatically collapses the HUD when unprompted"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Ergonomic Interaction Gate",
+      "items": [
+        "Hovering over the panel or typing in the chat prompt immediately pauses the dismissal",
+        "Vanish stealth mode completely silences hit-testing and renders the biochip transparent"
+      ]
+    }
+  ]
+}

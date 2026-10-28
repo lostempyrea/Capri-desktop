@@ -1,0 +1,52 @@
+# Dependencies & Build Outputs
+node_modules/
+dist/
+build/
+out/
+release/
+
+# Local Backups & Old Assets (Chỉ giữ trên máy, không đẩy lên Git)
+_backups/
+old_assets/
+*.bak
+*.backup
+*.tmp
+
+# AI Agent, Hooks & IDE Configs
+.gemini/
+.claude/
+.antigravity/
+.cursor/
+.codex/
+.vscode/
+.idea/
+hooks/
+CURRENT_TASK.md
+scripts/redteam-stress-test.js
+scripts/server-bridge.js
+scripts/*-test.js
+graphify-out/
+.agents/
+
+# Personal Configs, Secrets & Chat Logs (Bảo mật tuyệt đối)
+.env
+.env.*
+!.env.example
+config.json
+chat-history.json
+user-profile.json
+
+# Runtime Logs & Recorded Media
+*.log
+npm-debug.log*
+captures/
+recordings/
+temp/
+*.wav
+*.mp4
+*.webm
+
+# Windows Shortcuts & OS Artifacts
+Capri.lnk
+.DS_Store
+Thumbs.db

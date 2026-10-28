@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: file: https:; font-src 'self'; media-src 'self' capri: blob: http: https:; connect-src 'self' capri: http: https:">
+  <title>Capri</title>
+  <link rel="stylesheet" href="styles/capri.css">
+</head>
+<body>
+  <!-- FX Canvas for screen flashes, cut-ins and celebrations -->
+  <canvas id="fx" class="fx" aria-hidden="true"></canvas>
+
+  <!-- Single Mini Biochip: ONLY ONE instance globally on desktop -->
+  <canvas id="chip" class="chip" aria-label="Capri’s biochip"></canvas>
+  <!-- Legacy mask canvas permanently deactivated to eliminate duplicate chip spawning -->
+  <canvas id="mask" class="chip" hidden style="display: none !important; pointer-events: none !important;" aria-hidden="true"></canvas>
+
+  <!-- Quick-Chat Input Dock (Revealed on Biochip hover) -->
+  <div id="biochip-quick-input" class="biochip-quick-input" hidden>
+    <div class="biochip-quick-input__plate">
+      <span class="biochip-quick-input__dot" aria-hidden="true"></span>
+      <input id="biochip-quick-input-field" class="biochip-quick-input__field" type="text" maxlength="300" placeholder="Chat nhanh với Capri..." autocomplete="off" spellcheck="false">
+      <button id="biochip-quick-mic-btn" class="biochip-quick-input__mic holo-mic-btn" type="button" title="Thu âm giọng nói (Alt+V)">
+        <span class="panel__mic-dot is-off"></span>
+        <svg class="holo-mic-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Voice Status Pill is permanently retired from above Biochip; all status is pushed to Top-Left Status Bar -->
+  <div id="biochip-voice-pill" class="voice-status-pill" hidden style="display: none !important; opacity: 0 !important; pointer-events: none !important;" aria-hidden="true"></div>
+
+  <!-- High-Tech Biochip Speech Bubble / Overhead Stack (Independent Voice/Task Response) -->
+  <div id="biochip-speech" class="biochip-speech-bubble biochip-overhead-stack" hidden aria-live="polite">
+    <div class="biochip-speech__plate">
+      <div class="biochip-speech__header">
+        <span class="biochip-speech__dot" aria-hidden="true"></span>
+        <span class="biochip-speech__badge">[ CAPRI // VOICE ]</span>
+        <span class="biochip-speech__arrow" aria-hidden="true">▸</span>
+      </div>
+      <div class="biochip-speech__body">
+        <span class="biochip-speech__text"></span>
+        <span class="biochip-speech__cursor" aria-hidden="true">_</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cyberpunk Hologram Light Beam Cone -->
+  <svg id="holo-beam" class="holo-beam" hidden aria-hidden="true">
+    <defs>
+      <linearGradient id="holo-beam-grad" x1="0%" y1="100%" x2="0%" y2="0%">
+        <stop offset="0%" stop-color="var(--theme-secondary, #ff2a5f)" stop-opacity="0.6" />
+        <stop offset="45%" stop-color="var(--theme-border-dim, #9d4edd)" stop-opacity="0.25" />
+        <stop offset="100%" stop-color="var(--theme-primary, #00f0ff)" stop-opacity="0.04" />
+      </linearGradient>
+      <linearGradient id="holo-beam-edge" x1="0%" y1="100%" x2="0%" y2="0%">
+        <stop offset="0%" stop-color="var(--theme-secondary, #ff2a5f)" stop-opacity="0.9" />
+        <stop offset="50%" stop-color="var(--theme-border-dim, #9d4edd)" stop-opacity="0.5" />
+        <stop offset="100%" stop-color="var(--theme-primary, #00f0ff)" stop-opacity="0.15" />
+      </linearGradient>
+      <pattern id="holo-scanlines" width="100" height="6" patternUnits="userSpaceOnUse">
+        <line x1="0" y1="0" x2="100" y2="0" stroke="var(--theme-glow, rgba(0, 240, 255, 0.2))" stroke-width="1.5" />
+      </pattern>
+    </defs>
+    <polygon id="holo-beam-poly" points="144,800 24,440 704,440" fill="url(#holo-beam-grad)" />
+    <polygon id="holo-beam-scan" points="144,800 24,440 704,440" fill="url(#holo-scanlines)" />
+    <line id="holo-beam-left" x1="144" y1="800" x2="24" y2="440" stroke="url(#holo-beam-edge)" stroke-width="2" />
+    <line id="holo-beam-right" x1="144" y1="800" x2="704" y2="440" stroke="url(#holo-beam-edge)" stroke-width="2" />
+  </svg>
+
+  <!-- Cyberpunk Hologram Projection Screen / Chat HUD -->
+  <aside id="panel" class="hologram-screen panel" data-kind="info" hidden aria-live="polite">
+    <div class="holo-frame">
+      <!-- 4 Tech Corner Brackets / Decals (┌ ┐ └ ┘) -->
+      <div class="holo-frame-corner holo-frame-corner--tl" aria-hidden="true"></div>
+      <div class="holo-frame-corner holo-frame-corner--tr" aria-hidden="true"></div>
+      <div class="holo-frame-corner holo-frame-corner--bl" aria-hidden="true"></div>
+      <div class="holo-frame-corner holo-frame-corner--br" aria-hidden="true"></div>
+
+      <!-- COMMAND BAR HEADER (Fixed 36px) -->
+      <header class="holo-header">
+        <div class="holo-header__title">
+          <div class="holo-badge">
+            <span class="holo-status-dot"></span>
+            <span class="holo-brand">[ CAPRI // LINK ACTIVE ]</span>
+          </div>
+          <div id="holo-header-ticker" class="holo-header-ticker" title="Trạng thái hệ thống">
+            <span class="holo-ticker-dot"></span>
+            <div class="holo-ticker-scroll">
+              <span class="holo-ticker-verb">IDLE</span>
+              <span class="holo-ticker-target"></span>
+            </div>
+          </div>
+          <span class="panel__who" hidden>Capri</span>
+          <span class="panel__state holo-state"></span>
+        </div>
+        <div class="holo-header__actions">
+          <button id="nav-btn-media" class="holo-header-btn" type="button" title="Mở / Thu gọn trình phát nhạc (Media)">
+            <svg class="btn-svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+            <span class="btn-label">Media</span>
+          </button>
+          <button id="nav-btn-settings" class="holo-header-btn" type="button" title="Cài đặt hệ thống (Settings)">
+            <svg class="btn-svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            <span class="btn-label">Settings</span>
+          </button>
+          <!-- Overflow Popover Menu (< 500px / < 430px) -->
+          <div class="holo-overflow-wrap">
+            <button id="holo-more-btn" class="holo-header-btn holo-more-btn" type="button" title="Thêm tính năng">
+              <svg class="btn-svg" viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><circle cx="12" cy="12" r="2"></circle><circle cx="19" cy="12" r="2"></circle><circle cx="5" cy="12" r="2"></circle></svg>
+            </button>
+            <div id="holo-overflow-menu" class="holo-overflow-menu" hidden>
+              <button id="overflow-btn-media" class="holo-overflow-item" type="button">Media</button>
+              <button id="overflow-btn-settings" class="holo-overflow-item" type="button">Cài đặt</button>
+            </div>
+          </div>
+          <!-- Minimize Button (Icon-Only) -->
+          <button id="holo-min-btn" class="holo-header-btn holo-header-btn--min holo-header-btn--icon-only" type="button" title="Thu nhỏ về Biochip">
+            <svg class="btn-svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path></svg>
+          </button>
+          <!-- Close Button (Icon-Only) -->
+          <button id="holo-close-btn" class="holo-header-btn holo-header-btn--close holo-header-btn--icon-only panel__close" type="button" title="Đóng màn hình chiếu">
+            <svg class="btn-svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- MAIN CHAMBER: Holo-Deck Split View (40% Stage / 60% Comms Hub) -->
+      <div class="panel__plate holo-chamber">
+        <!-- LEFT COLUMN: HOLO-CHARACTER-STAGE (40% Flex, Capri construct lives here) -->
+        <section class="holo-character-stage">
+          <div class="holo-stage-wrap">
+            <div class="holo-avatar-scanline" aria-hidden="true"></div>
+            <!-- Pedestal Ring -->
+            <div class="holo-pedestal" aria-hidden="true">
+              <div class="holo-pedestal__ring holo-pedestal__ring--outer"></div>
+              <div class="holo-pedestal__ring holo-pedestal__ring--inner"></div>
+              <div class="holo-pedestal__glow"></div>
+            </div>
+            <!-- Full-size WebGL/Canvas Capri Sprite inside stage -->
+            <div id="capri" class="capri">
+              <canvas id="sprite" class="capri__sprite" aria-label="Capri"></canvas>
+            </div>
+          </div>
+          <footer class="holo-stage-footer">
+            <span class="holo-stage-label">CAPRICORN // CONSTRUCT</span>
+            <span class="holo-stage-status">ONLINE</span>
+          </footer>
+        </section>
+
+        <!-- RIGHT COLUMN: HOLO-CONTENT-AREA (60% Flex, Comms Hub & Settings) -->
+        <section class="panel__body holo-content-area">
+          <!-- TAB 1: CHAT & COMMS VIEW -->
+          <div id="tab-view-chat" class="holo-tab-pane is-active">
+            <!-- Top Integrated Media Player Dock (Right above chat history) -->
+            <div id="holo-media-hud" class="holo-media-hud" hidden>
+              <!-- Populated by panel.js / player -->
+            </div>
+
+            <!-- Scrollable Chat History -->
+            <div id="holo-chat-history" class="holo-chat-history">
+              <div id="holo-chat-log" class="holo-chat-log"></div>
+              <p class="panel__quote holo-bubble holo-bubble--user" hidden></p>
+              <div class="holo-msg-row holo-msg-row--capri holo-current-reply" hidden>
+                <div class="capri-chat-avatar holo-msg-avatar holo-msg-avatar--live" data-face="look" title="Capri">
+                  <canvas class="capri-avatar-canvas" width="40" height="40"></canvas>
+                </div>
+                <div class="holo-bubble holo-bubble--capri">
+                  <p class="panel__line holo-line"></p>
+                  <div class="panel__reply holo-reply" hidden></div>
+                  <section class="panel__report holo-report" hidden></section>
+                  <p class="panel__summary" hidden></p>
+                  <ol class="panel__log holo-log" hidden></ol>
+                  <div class="panel__actions holo-actions" hidden></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Bottom Input Dock (Prompt & Voice Input Dock) -->
+            <form class="panel__chat holo-input-form" autocomplete="off">
+              <button class="panel__action panel__mic holo-mic-btn" type="button" title="Nhấn để nói (Alt+V)">
+                <span class="panel__mic-dot is-off"></span>
+                <svg class="holo-mic-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+                <div class="holo-mic-wave" aria-hidden="true">
+                  <span class="wave-bar"></span>
+                  <span class="wave-bar"></span>
+                  <span class="wave-bar"></span>
+                  <span class="wave-bar"></span>
+                </div>
+              </button>
+              <input class="panel__input holo-input" type="text" maxlength="500" spellcheck="false" placeholder="Gửi tin nhắn hoặc ra lệnh cho Capri...">
+              <button class="panel__action is-primary panel__send holo-send-btn" type="submit">Gửi</button>
+            </form>
+            <p class="panel__note holo-note" hidden></p>
+          </div>
+
+          <!-- TAB 2: SETTINGS VIEW -->
+          <div id="tab-view-settings" class="holo-tab-pane holo-settings-view" hidden>
+            <!-- Managed by SettingsUI -->
+          </div>
+        </section>
+      </div>
+
+      <!-- NEON AUTO-DISMISS COUNTDOWN TIMER BAR (3px) -->
+      <div class="panel__hologram-timer holo-timer-wrap">
+        <div id="holo-timer-bar" class="panel__hologram-timer-bar holo-timer-bar"></div>
+      </div>
+    </div>
+  </aside>
+
+  <div id="ticker" class="ticker" hidden>
+    <div class="ticker__plate">
+      <span class="ticker__dot" aria-hidden="true"></span>
+      <span class="ticker__verb"></span>
+      <span class="ticker__arrow" aria-hidden="true">▸</span>
+      <span class="ticker__target"></span>
+    </div>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Capri Desktop Inter-Module Dataflow Architecture",
+    "output": "docs/capri-dataflow.html",
+    "viewBox": [1080, 520],
+    "animation": "trace",
+    "quality_profile": "showcase"
+  },
+  "stages": [
+    { "label": "External & OS" },
+    { "label": "Main Host" },
+    { "label": "Renderer Core" },
+    { "label": "Visuals & Audio" },
+    { "label": "Hologram Presentation" }
+  ],
+  "nodes": [
+    { "id": "agent_bridge", "type": "backend", "label": "agent-bridge.js", "sublabel": "TCP lock :43224 / fs.watch", "stage": 0, "row": 0, "tag": "Daemon" },
+    { "id": "os_mic", "type": "frontend", "label": "OS Audio & Mic", "sublabel": "Microphone / Loopback", "stage": 0, "row": 2, "tag": "Hardware" },
+    { "id": "main_process", "type": "cloud", "label": "main.js", "sublabel": "Single-instance / IPC Router", "stage": 1, "row": 1, "tag": "Electron Main" },
+    { "id": "app_hub", "type": "security", "label": "app.js", "sublabel": "Hit-test & Event Dispatcher", "stage": 2, "row": 1, "tag": "Renderer Bus" },
+    { "id": "voice_engine", "type": "backend", "label": "voice-input.js", "sublabel": "VAD Analyser & STT Buffer", "stage": 3, "row": 0, "tag": "WebAudio" },
+    { "id": "biochip", "type": "frontend", "label": "chip.js", "sublabel": "Mini Biochip & Beam Base", "stage": 3, "row": 1, "tag": "Single Biochip" },
+    { "id": "capri_stage", "type": "frontend", "label": "capri.js", "sublabel": "Sprite Renderer & Lip-sync", "stage": 3, "row": 2, "tag": "40% Stage" },
+    { "id": "holo_panel", "type": "frontend", "label": "panel.js", "sublabel": "Holo Command Bar & Comms Hub", "stage": 4, "row": 1, "tag": "HUD Split View" }
+  ],
+  "flows": [
+    { "id": "bridge_to_main", "from": "agent_bridge", "to": "main_process", "label": "claude events", "classification": "TCP IPC", "variant": "emphasis" },
+    { "id": "os_to_main", "from": "os_mic", "to": "main_process", "label": "raw audio", "classification": "Device input", "variant": "default" },
+    { "id": "main_to_app", "from": "main_process", "to": "app_hub", "label": "IPC bridge", "classification": "preload bridge", "variant": "emphasis" },
+    { "id": "app_to_voice", "from": "app_hub", "to": "voice_engine", "label": "mic stream", "classification": "Web Audio API", "variant": "default" },
+    { "id": "app_to_chip", "from": "app_hub", "to": "biochip", "label": "hit-test state", "classification": "DOM events", "variant": "emphasis", "labelDy": 22 },
+    { "id": "app_to_capri", "from": "app_hub", "to": "capri_stage", "label": "emotes & RAF", "classification": "Canvas 2D", "variant": "default" },
+    { "id": "voice_to_panel", "from": "voice_engine", "to": "holo_panel", "label": "STT transcript", "classification": "STT events", "variant": "emphasis" },
+    { "id": "chip_to_panel", "from": "biochip", "to": "holo_panel", "label": "beam coords", "classification": "SVG projection", "variant": "emphasis", "labelDy": 22 },
+    { "id": "capri_to_panel", "from": "capri_stage", "to": "holo_panel", "label": "talk lip-sync", "classification": "state machine", "variant": "default" }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Data Pipeline Clarity",
+      "items": [
+        "agent-bridge captures developer actions and relays them to main.js via single-instance TCP socket",
+        "app.js centrally mediates hit-testing and distributes events across audio, biochip, sprite, and panel"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Visual Projection Synergy",
+      "items": [
+        "chip.js projects holographic coordinates and audio RMS up to panel.js and the SVG beam",
+        "capri.js syncs facial emotes and mouth movements with the active voice output in panel.js"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,97 @@
+{
+  "name": "capri-desktop",
+  "version": "1.3.3-cyberpunk-edition",
+  "description": "Capri, the Project Capricorn construct, living on your desktop and narrating what Claude Code is doing.",
+  "author": "mochiiwuff",
+  "repository": "github:mochiiwuff/capri-desktop",
+  "main": "src/main/main.js",
+  "private": true,
+  "scripts": {
+    "prestart": "node -e \"if (require('fs').existsSync('hooks/pre-start-check.js')) require('./hooks/pre-start-check.js')\"",
+    "predev": "node -e \"if (require('fs').existsSync('hooks/pre-start-check.js')) require('./hooks/pre-start-check.js')\"",
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "demo": "node scripts/demo.js",
+    "hooks:install": "node scripts/install-hooks.js",
+    "hooks:uninstall": "node scripts/install-hooks.js --uninstall",
+    "dist": "electron-builder --win",
+    "bridge": "node scripts/agent-bridge.js",
+    "audit": "node -e \"if (require('fs').existsSync('hooks/post-audit.js')) require('./hooks/post-audit.js')\"",
+    "test:agent": "node scripts/test-antigravity.js",
+    "test:redteam": "node -e \"if (require('fs').existsSync('scripts/redteam-stress-test.js')) require('./scripts/redteam-stress-test.js')\"",
+    "test:hud": "node scripts/verify-hud-v3.js",
+    "test:v130": "node scripts/verify-v130-upgrade.js",
+    "shortcut": "node scripts/create-shortcut.js",
+    "bump:small": "node scripts/version-bump.js small",
+    "bump:major": "node scripts/version-bump.js major",
+    "rollback": "node scripts/rollback.js"
+  },
+  "keywords": [
+    "claude-code",
+    "desktop-pet",
+    "electron",
+    "cyberpunk",
+    "edgerunners"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "electron": "^44.9.3",
+    "electron-builder": "^26.18.0"
+  },
+  "dependencies": {
+    "@discordjs/voice": "^0.19.2",
+    "@distube/ytdl-core": "^5.0.2",
+    "@fontsource/chakra-petch": "^5.3.0",
+    "@fontsource/jetbrains-mono": "^5.3.0",
+    "discord.js": "^14.27.0",
+    "ffmpeg-static": "^5.3.0",
+    "libsodium-wrappers": "^0.8.4",
+    "opusscript": "^0.0.8",
+    "prism-media": "^1.3.5",
+    "yt-search": "^2.13.1"
+  },
+  "build": {
+    "appId": "capri.desktop",
+    "productName": "Capri",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**",
+      "assets/**",
+      "hooks/**",
+      "scripts/**",
+      "package.json",
+      "LICENSE"
+    ],
+    "asarUnpack": [
+      "hooks/**",
+      "src/main/windows.ps1",
+      "**/node_modules/ffmpeg-static/**"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icons/capri.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "runAfterFinish": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Capri",
+      "artifactName": "Capri-Setup-${version}.${ext}"
+    }
+  }
+}
