@@ -1,10 +1,6 @@
 # ⚡ Capri Desktop — Cyberpunk Edition
 
 <p align="center">
-  <img src="docs/intro.png" alt="Capri Desktop Banner" width="720" />
-</p>
-
-<p align="center">
   <strong>An Intelligent Desktop Pet & Cyberpunk HUD Companion</strong><br>
   <em>Living on your desktop, narrating AI coding actions, listening to voice commands, and clipping your gaming highlights.</em>
 </p>
