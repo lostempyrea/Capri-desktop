@@ -10,9 +10,9 @@
 </p>
 
 <p align="center">
-  <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/Node.js-%3E%3D20.0.0-339933?logo=node.js&logoColor=white" alt="Node.js" /></a>
+  <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/Node.js-%3E%3D18.0.0-339933?logo=node.js&logoColor=white" alt="Node.js" /></a>
   <a href="https://www.electronjs.org/"><img src="https://img.shields.io/badge/Electron-44.x-47848F?logo=electron&logoColor=white" alt="Electron" /></a>
-  <a href="package.json"><img src="https://img.shields.io/badge/Version-1.4.0--cyberpunk--edition-00f0ff?style=flat-square" alt="Version" /></a>
+  <a href="package.json"><img src="https://img.shields.io/badge/Version-1.5.2--cyberpunk--edition-00f0ff?style=flat-square" alt="Version" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square" alt="License" /></a>
   <a href="README.vi.md"><img src="https://img.shields.io/badge/Ngôn_ngữ-Tiếng_Việt-ff0055?style=flat-square" alt="Tiếng Việt" /></a>
 </p>
@@ -92,44 +92,57 @@ Unlike intrusive overlay tools, Capri lives primarily inside a lightweight, circ
 
 ---
 
-## 🛠️ Installation & Setup
+## 🚀 Installation & Setup Guide (For New Machines)
 
-### Prerequisites
-* [Node.js](https://nodejs.org/) **>= 20.0.0**
-* `npm` or `bun`
+Follow these steps to set up and run the Capri-desktop project on a new development machine.
+
+### 1. Prerequisites
+Ensure you have the following installed on your system:
+* **Node.js** (v18.x or higher recommended)
+* **npm** (comes bundled with Node.js)
+* **Git**
 * Windows 10/11 (macOS and Linux supported)
 
-### Quick Start
+### 2. Clone the Repository
+Open your terminal / command prompt and clone the project:
+```bash
+git clone https://github.com/lostempyrea/Capri-desktop.git
+cd Capri-desktop
+```
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/lostempyrea/Capri-desktop.git
-   cd Capri-desktop
-   ```
+### 3. Install Dependencies
+Install all required Node.js packages:
+```bash
+npm install
+```
 
-2. **Install dependencies**:
-   ```bash
-   npm install
-   ```
+### 4. Configuration (Optional)
+Capri works out of the box with default heuristics and offline voice without any API keys. If you wish to enable online LLM chat or ultra-fast Whisper speech recognition:
+* Copy the example configuration file:
+  ```bash
+  cp config.example.json config.json
+  # or copy .env.example:
+  cp .env.example .env
+  ```
+* Fill in your free API keys:
+  * **Groq Cloud API Key** (ultra-fast Llama 3.3 & Whisper STT): [console.groq.com](https://console.groq.com)
+  * **Google Gemini Studio API Key**: [aistudio.google.com](https://aistudio.google.com/apikey)
 
-3. **Configure API Keys** (Optional, for LLM chat & Voice):
-   Copy `.env.example` to `.env`:
-   ```bash
-   cp .env.example .env
-   ```
-   Fill in your free API keys:
-   * **Groq API Key** (for fast chat & Whisper STT): [console.groq.com](https://console.groq.com)
-   * **Gemini API Key**: [aistudio.google.com](https://aistudio.google.com/apikey)
+### 5. Launch Capri Desktop
+Run the desktop application:
+```bash
+npm start
+```
+*For active development with developer tools:*
+```bash
+npm run dev
+```
 
-4. **Launch Capri**:
-   ```bash
-   npm start
-   ```
-
-5. **Create Desktop Shortcut**:
-   ```bash
-   npm run shortcut
-   ```
+### 6. Create Desktop Shortcut (Windows)
+Generate an instant cyberpunk desktop shortcut:
+```bash
+npm run shortcut
+```
 
 ---
 

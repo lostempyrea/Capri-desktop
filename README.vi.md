@@ -10,9 +10,9 @@
 </p>
 
 <p align="center">
-  <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/Node.js-%3E%3D20.0.0-339933?logo=node.js&logoColor=white" alt="Node.js" /></a>
+  <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/Node.js-%3E%3D18.0.0-339933?logo=node.js&logoColor=white" alt="Node.js" /></a>
   <a href="https://www.electronjs.org/"><img src="https://img.shields.io/badge/Electron-44.x-47848F?logo=electron&logoColor=white" alt="Electron" /></a>
-  <a href="package.json"><img src="https://img.shields.io/badge/Phi%C3%AAn_b%E1%BA%A3n-1.4.0--cyberpunk--edition-00f0ff?style=flat-square" alt="Version" /></a>
+  <a href="package.json"><img src="https://img.shields.io/badge/Phi%C3%AAn_b%E1%BA%A3n-1.5.2--cyberpunk--edition-00f0ff?style=flat-square" alt="Version" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/Gi%E1%BA%A5y_ph%C3%A9p-MIT-blue.svg?style=flat-square" alt="License" /></a>
   <a href="README.md"><img src="https://img.shields.io/badge/Language-English-00f0ff?style=flat-square" alt="English" /></a>
 </p>
@@ -92,44 +92,57 @@ Khác với các ứng dụng chiếm dụng màn hình cồng kềnh, Capri ho�
 
 ---
 
-## 🛠️ Cài Đặt & Khởi Chạy
+## 🚀 Hướng Dẫn Cài Đặt & Khởi Chạy (Dành Cho Máy Mới)
 
-### Yêu cầu hệ thống
-* [Node.js](https://nodejs.org/) **>= 20.0.0**
-* `npm` hoặc `bun`
+Thực hiện theo các bước sau để thiết lập và khởi chạy dự án Capri-desktop trên một máy tính phát triển mới:
+
+### 1. Yêu cầu hệ thống (Prerequisites)
+Đảm bảo máy tính của bạn đã cài đặt các công cụ sau:
+* **Node.js** (khuyến nghị phiên bản `v18.x` trở lên)
+* **npm** (đi kèm sẵn khi cài đặt Node.js)
+* **Git**
 * Windows 10/11 (hỗ trợ cả macOS và Linux)
 
-### Các bước cài đặt nhanh
+### 2. Clone mã nguồn từ GitHub (Clone Repository)
+Mở Terminal / Command Prompt và tải dự án về máy:
+```bash
+git clone https://github.com/lostempyrea/Capri-desktop.git
+cd Capri-desktop
+```
 
-1. **Clone mã nguồn từ GitHub**:
-   ```bash
-   git clone https://github.com/lostempyrea/Capri-desktop.git
-   cd Capri-desktop
-   ```
+### 3. Cài đặt các gói phụ thuộc (Install Dependencies)
+Chạy lệnh cài đặt toàn bộ package cần thiết:
+```bash
+npm install
+```
 
-2. **Cài đặt các gói phụ thuộc**:
-   ```bash
-   npm install
-   ```
+### 4. Cấu hình (Tùy chọn - Configuration)
+Capri có thể hoạt động ngay lập tức với các tập lệnh heuristic và giọng nói offline mà không cần API key. Nếu bạn muốn sử dụng tính năng trò chuyện AI hoặc nhận diện giọng nói siêu tốc Whisper:
+* Tạo file cấu hình từ mẫu:
+  ```bash
+  cp config.example.json config.json
+  # hoặc tạo file .env:
+  cp .env.example .env
+  ```
+* Điền API Key miễn phí của bạn:
+  * **Groq Cloud API Key** (Llama 3.3 siêu tốc & Whisper STT): [console.groq.com](https://console.groq.com)
+  * **Google Gemini Studio API Key**: [aistudio.google.com](https://aistudio.google.com/apikey)
 
-3. **Cấu hình API Keys** (Tùy chọn, để trò chuyện AI & Nhận diện giọng nói):
-   Sao chép file `.env.example` thành `.env`:
-   ```bash
-   cp .env.example .env
-   ```
-   Điền API Key miễn phí của bạn:
-   * **Groq API Key** (Chat siêu nhanh & Whisper STT): [console.groq.com](https://console.groq.com)
-   * **Gemini API Key**: [aistudio.google.com](https://aistudio.google.com/apikey)
+### 5. Khởi động ứng dụng (Launch Capri Desktop)
+Chạy ứng dụng:
+```bash
+npm start
+```
+*Để chạy ở chế độ phát triển (Dev mode with DevTools):*
+```bash
+npm run dev
+```
 
-4. **Khởi động ứng dụng**:
-   ```bash
-   npm start
-   ```
-
-5. **Tạo Shortcut ngoài màn hình chính**:
-   ```bash
-   npm run shortcut
-   ```
+### 6. Tạo Shortcut ngoài màn hình (Windows)
+Tạo biểu tượng khởi chạy nhanh Capri phong cách Cyberpunk trên màn hình Desktop:
+```bash
+npm run shortcut
+```
 
 ---
 
