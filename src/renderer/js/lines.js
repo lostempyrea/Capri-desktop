@@ -72,7 +72,7 @@ export const LINES = {
       "Bộ nhớ ngập tràn rồi. Dọn dẹp tí cho thoáng!"
     ],
     "chat": {
-      "badge": "AI · TRỰC TIẾP",
+      "badge": "",
       "talk": "Tám chuyện với tôi",
       "hello": [
         "Gì đấy, bồ tèo? Đầu óc đang nghĩ ngợi gì à?",
@@ -368,7 +368,7 @@ export const LINES = {
       "Too much memory. Tidying up."
     ],
     "chat": {
-      "badge": "AI · LIVE",
+      "badge": "",
       "talk": "Talk to me",
       "hello": [
         "Hey, partner. What’s on your mind?",

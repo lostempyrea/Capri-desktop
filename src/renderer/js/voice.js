@@ -78,6 +78,33 @@ export class Voice {
     }
   }
 
+  async playSoundFile(url) {
+    if (this.muted) return;
+    try {
+      const ctx = this.ensure();
+      if (ctx.state === 'suspended') await ctx.resume();
+      let res;
+      try {
+        res = await fetch(url);
+      } catch {
+        res = await fetch(`../../${url}`);
+      }
+      if (!res || !res.ok) {
+        res = await fetch(`../../${url}`);
+      }
+      const data = await res.arrayBuffer();
+      const audioBuf = await ctx.decodeAudioData(data);
+      const src = ctx.createBufferSource();
+      src.buffer = audioBuf;
+      const gain = ctx.createGain();
+      gain.gain.value = this.volume;
+      src.connect(gain).connect(this.master);
+      src.start();
+    } catch (err) {
+      console.warn('[voice] playSoundFile failed:', url, err.message);
+    }
+  }
+
   play(cue, opts = {}) {
     if (this.muted) return;
     const ctx = this.ensure();

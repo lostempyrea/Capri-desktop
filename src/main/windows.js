@@ -93,4 +93,35 @@ function startWindowWatch({ overlay, onUpdate }) {
   };
 }
 
-module.exports = { startWindowWatch, isWorkWindow };
+function getLedgesOnce(overlay) {
+  return new Promise((resolve) => {
+    if (process.platform !== 'win32' || !overlay || overlay.isDestroyed()) {
+      return resolve({ fg: 0, wins: [] });
+    }
+    const handle = overlay.getNativeWindowHandle();
+    const self = handle.length >= 8 ? handle.readBigUInt64LE(0) : BigInt(handle.readUInt32LE(0));
+    const child = spawn('powershell.exe', [
+      '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+      '-File', SCRIPT, String(self), String(process.pid), '-Once',
+    ], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+
+    let out = '';
+    child.stdout.on('data', (d) => { out += d.toString(); });
+    child.on('close', () => {
+      try {
+        const snap = JSON.parse(out.trim());
+        const bounds = overlay.getBounds();
+        const wins = (snap.wins || []).map((w) => {
+          const dip = screen.screenToDipRect(null, { x: w.x, y: w.y, width: w.w, height: w.h });
+          return { id: w.id, x: dip.x - bounds.x, y: dip.y - bounds.y, w: dip.width, h: dip.height, max: w.max, title: w.title || '', work: isWorkWindow(w.title) };
+        }).filter((w) => w.x < bounds.width && w.x + w.w > 0 && w.y < bounds.height && w.y + w.h > 0);
+        resolve({ fg: snap.fg, wins });
+      } catch (e) {
+        resolve({ fg: 0, wins: [] });
+      }
+    });
+    child.on('error', () => resolve({ fg: 0, wins: [] }));
+  });
+}
+
+module.exports = { startWindowWatch, isWorkWindow, getLedgesOnce };

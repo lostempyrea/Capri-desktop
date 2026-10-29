@@ -11,7 +11,10 @@ const {
 const config = require('./config');
 const { TRAY, LANGS } = require('./labels');
 const { createBridge } = require('./bridge');
-const { startWindowWatch } = require('./windows');
+const { startWindowWatch, getLedgesOnce } = require('./windows');
+const memory = require('./memory');
+const hands = require('./hands');
+const { discordRpc } = require('./discord-rpc-pipe');
 const ollama = require('./ollama');
 const apps = require('./apps');
 const media = require('./media');
@@ -752,6 +755,30 @@ function registerIpc() {
     if (!discord) return { ok: false, error: 'Discord Bot chưa khởi động.' };
     return await discord.shareFile(filePath);
   });
+
+  // Windows ledge snap (single-shot, 0% CPU idle)
+  ipcMain.handle('windows:get-ledges', () => getLedgesOnce(overlay));
+
+  // Long-Term Memory (me.md)
+  ipcMain.handle('memory:get', () => memory.getMemory());
+  ipcMain.handle('memory:save', (_e, content) => memory.saveMemory(content));
+  ipcMain.handle('memory:append', (_e, note) => memory.appendMemory(note));
+
+  // Safe Hands Tools (Hands.cs & Computer.cs port)
+  ipcMain.handle('hands:open-app', (_e, appName) => hands.openApp(appName));
+  ipcMain.handle('hands:switch-app', (_e, target) => hands.switchApp(target));
+  ipcMain.handle('hands:minimize-app', (_e, target) => hands.minimizeApp(target));
+  ipcMain.handle('hands:shortcut', (_e, combo) => hands.sendShortcut(combo));
+  ipcMain.handle('hands:power', (_e, action) => hands.systemPower(action));
+
+  // Discord Local Named Pipe Rich Presence
+  ipcMain.handle('discord-rpc:status', () => discordRpc.getStatus());
+  ipcMain.handle('discord-rpc:toggle', (_e, enabled) => {
+    discordRpc.enabled = Boolean(enabled);
+    if (!enabled) discordRpc.stop();
+    else discordRpc.start();
+    return discordRpc.getStatus();
+  });
   ipcMain.on('voice:microphones', (_e, mics) => {
     if (Array.isArray(mics)) {
       availableMicrophones = mics;
@@ -976,6 +1003,7 @@ function main() {
         port: PORT,
       });
       discord.start().catch((e) => console.warn('[discord] start error:', e)).finally(() => rebuildTray());
+      discordRpc.start();
 
       globalShortcut.register('Control+Alt+C', () => toggleVisible());
       globalShortcut.register('Alt+V', () => {

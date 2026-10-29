@@ -786,7 +786,7 @@ export class Panel {
     this.setFace(msg.face || KIND_FACE[msg.kind] || 'grin');
 
     if (this.tag) this.tag.textContent = msg.tag || '';
-    if (this.state) this.state.textContent = msg.badge || this.labels.state[msg.kind] || '';
+    if (this.state) this.state.textContent = '';
     if (this.quote) {
       this.quote.textContent = msg.quote || '';
       this.quote.hidden = !msg.quote;

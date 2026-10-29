@@ -838,6 +838,14 @@ async function boot() {
     guide.welcome();
   }
 
+  // Auto-start Instant Replay 30s rolling buffer 2s after boot
+  setTimeout(() => {
+    replayBuffer.start(30).catch((err) => console.warn('[app] Auto-start replayBuffer failed:', err.message));
+  }, 2000);
+
+  // Time-based smart greeting audio & status banner
+  playSmartGreeting(voice, chip, panel, brain);
+
   // In the evening, after a real day's work, she brings you her report card once, on her own,
   // at a quiet moment.
   setInterval(() => {
@@ -850,6 +858,52 @@ async function boot() {
       capri.perform('curious', capri.towardCenter());
     }
   }, 60000);
+}
+
+async function playSmartGreeting(voice, chip, panel, brain) {
+  if (voice.muted) return;
+  const now = new Date();
+  const hour = now.getHours();
+  const lastSeenStr = localStorage.getItem('capri.lastSeen');
+  const nowMs = Date.now();
+  localStorage.setItem('capri.lastSeen', String(nowMs));
+
+  let wav = null;
+  let textVi = '';
+  let textEn = '';
+
+  if (lastSeenStr) {
+    const lastSeen = parseInt(lastSeenStr, 10);
+    const diffHours = (nowMs - lastSeen) / (1000 * 60 * 60);
+    if (diffHours >= 24) {
+      wav = 'assets/voice/hello-miss.wav';
+      textVi = 'Chào mừng quay trở lại! Đã lâu không gặp, tôi canh máy cho bạn suốt đấy.';
+      textEn = 'Welcome back! Missed you, I have been watching your PC.';
+    }
+  }
+
+  if (!wav) {
+    if (hour >= 5 && hour < 12) {
+      wav = 'assets/voice/hello-morning.wav';
+      textVi = 'Chào buổi sáng! Chúc một ngày làm việc tràn đầy năng lượng nhé.';
+      textEn = 'Good morning! Ready for a productive day.';
+    } else if (hour >= 23 || hour < 5) {
+      wav = 'assets/voice/hello-late.wav';
+      textVi = 'Khuya lắm rồi đấy. Nhớ giữ gìn sức khỏe, đừng thức khuya quá nha!';
+      textEn = 'Working late? Take care of yourself, do not stay up too late.';
+    }
+  }
+
+  if (wav) {
+    setTimeout(async () => {
+      await voice.playSoundFile(wav);
+      const isVi = (brain.lang || 'vi') === 'vi';
+      const msg = isVi ? textVi : textEn;
+      if (chip?.setStatusBadge) {
+        chip.setStatusBadge(msg, 'info', 7000);
+      }
+    }, 1800);
+  }
 }
 
 boot().catch((err) => {

@@ -12,7 +12,7 @@
 <p align="center">
   <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/Node.js-%3E%3D20.0.0-339933?logo=node.js&logoColor=white" alt="Node.js" /></a>
   <a href="https://www.electronjs.org/"><img src="https://img.shields.io/badge/Electron-44.x-47848F?logo=electron&logoColor=white" alt="Electron" /></a>
-  <a href="package.json"><img src="https://img.shields.io/badge/Phi%C3%AAn_b%E1%BA%A3n-1.3.3--cyberpunk--edition-00f0ff?style=flat-square" alt="Version" /></a>
+  <a href="package.json"><img src="https://img.shields.io/badge/Phi%C3%AAn_b%E1%BA%A3n-1.4.0--cyberpunk--edition-00f0ff?style=flat-square" alt="Version" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/Gi%E1%BA%A5y_ph%C3%A9p-MIT-blue.svg?style=flat-square" alt="License" /></a>
   <a href="README.md"><img src="https://img.shields.io/badge/Language-English-00f0ff?style=flat-square" alt="English" /></a>
 </p>
@@ -65,7 +65,7 @@ Khác với các ứng dụng chiếm dụng màn hình cồng kềnh, Capri ho�
 * **Loại Bỏ Nút Bấm Thừa**: Không cần nút bấm quay thủ công, chỉ cần ra lệnh bằng giọng nói:
   * *"record that"*
   * *"clip that"*
-* Video được xuất tự động dạng MP4 vào thư mục `Videos/Capri_Clips/` kèm mốc thời gian rõ ràng.
+* Video được xuất tự động dạng MP4 vào thư mục `Videos/Capri-Replays/` kèm mốc thời gian rõ ràng.
 
 ### 7. Đa Nền Tảng Mô Hình AI LLM
 * **Groq Cloud (Khuyên dùng)**: Tốc độ phản hồi cực nhanh với Llama 3.3 70B & DeepSeek.
@@ -80,6 +80,15 @@ Khác với các ứng dụng chiếm dụng màn hình cồng kềnh, Capri ho�
   * `Crimson Protocol` (Sắc đỏ cảnh báo Netrunner)
   * `Matrix Console` (Màn hình điện toán xanh lá cổ điển)
 * **Kính Mờ Trong Suốt (Clear Glass)**: Tùy chỉnh thanh trượt độ trong suốt (opacity) và độ mờ nền (blur từ 8px–32px).
+
+### 9. Nâng Cấp Kiến Trúc v1.4.0 Từ Bản Tham Khảo C#
+* **Vật Lý Đung Đưa Dangle & Quán Tính Ném (Toss Inertia)**: Khi nắm kéo Capri, nhân vật chuyển sang trạng thái đung đưa chân tay; khi ném thả chuột sẽ áp dụng vận tốc thực tế, trọng lực và ma sát không khí.
+* **Tự Động Hút Mép Cửa Sổ Khi Thả (On-Drop Ledge Snap - 0% CPU)**: Khi thả rơi nhân vật, thuật toán quét Win32 một lần duy nhất để kiểm tra và hút Capri ngồi lên thanh tiêu đề cửa sổ gần nhất (trong phạm vi 28px), tuyệt đối không chạy ngầm gây tốn CPU.
+* **Nhảy Múa Theo Giai Điệu Bài Hát**: Tích hợp Web Audio FFT phân tích nhịp bass theo thời gian thực để kích hoạt chuyển động nhảy (`dance`, `perch_dance`) khi bật nhạc.
+* **Giọng Chào Thông Minh Theo Thời Gian**: Tự động phát âm thanh gốc (`hello-morning.wav`, `hello-late.wav`, `hello-miss.wav`) tương ứng với các khung giờ trong ngày hoặc sau thời gian dài vắng mặt.
+* **Ký Ức Dài Hạn (`me.md`)**: Tự động lưu thông tin Operator, thói quen và sở thích, nhúng trực tiếp vào System Prompt của AI LLM.
+* **Bộ Công Cụ Safe Hands**: Điều khiển cửa sổ máy tính an toàn qua giọng nói (`chuyển ứng dụng`, `thu nhỏ`, `nhấn phím`, `khóa máy`).
+* **Discord Local Rich Presence**: Kết nối trực tiếp qua Named Pipe cục bộ `\\.\pipe\discord-ipc-*`, không cần cấu hình Discord Bot Token.
 
 ---
 

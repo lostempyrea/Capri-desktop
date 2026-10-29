@@ -2,6 +2,7 @@
 
 const fs = require('node:fs');
 const configStore = require('./config-store');
+const memory = require('./memory');
 
 // Circuit breaker state: { [providerId]: cooldownUntilTimestamp }
 const circuitBreaker = {};
@@ -34,10 +35,21 @@ function getProviderClient(providerId) {
  * Execute Chat completion with auto-failover
  */
 async function chat(messages, options = {}) {
+  const userMemory = memory.getMemory();
   const cleanMessages = (Array.isArray(messages) ? messages : []).map(m => ({
     role: m.role,
     content: typeof m.content === 'string' ? m.content : (Array.isArray(m.content) ? m.content : String(m.content ?? ''))
   }));
+
+  if (userMemory) {
+    const sysIdx = cleanMessages.findIndex((m) => m.role === 'system');
+    const memoryPrompt = `\n\n[USER LONG-TERM MEMORY & CONTEXT (me.md)]\n${userMemory}`;
+    if (sysIdx !== -1) {
+      cleanMessages[sysIdx].content += memoryPrompt;
+    } else {
+      cleanMessages.unshift({ role: 'system', content: memoryPrompt });
+    }
+  }
   const config = configStore.load();
   const order = config.apiVault.failoverOrder || ['groq', 'gemini', 'openrouter', 'openai', 'ollama'];
   const preferredModel = options.model || config.apiVault.activeModels.chat;

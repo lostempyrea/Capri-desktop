@@ -90,6 +90,7 @@ export class Player {
     this.audio.addEventListener('playing', () => {
       this.playing = true;
       this.startPulse();
+      this.startBeatTracker();
       this.panel?.updateMusicPlaying?.(true);
       this.syncState();
     });
@@ -97,6 +98,7 @@ export class Player {
     this.audio.addEventListener('pause', () => {
       this.playing = false;
       this.stopPulse();
+      this.stopBeatTracker();
       this.panel?.updateMusicPlaying?.(false);
       this.syncState();
     });
@@ -440,6 +442,66 @@ export class Player {
       this.pulseTimer = null;
     }
     this.panel?.setTicker?.(null);
+  }
+
+  setupBeatAnalyser() {
+    if (this.analyser) return;
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!this.audioCtx) this.audioCtx = new AudioCtx();
+      this.sourceNode = this.audioCtx.createMediaElementSource(this.audio);
+      this.analyser = this.audioCtx.createAnalyser();
+      this.analyser.fftSize = 64;
+      this.analyser.smoothingTimeConstant = 0.8;
+      this.sourceNode.connect(this.analyser);
+      this.analyser.connect(this.audioCtx.destination);
+      this.freqData = new Uint8Array(this.analyser.frequencyBinCount);
+    } catch (err) {
+      console.warn('[player] Web Audio Analyser setup:', err.message);
+    }
+  }
+
+  startBeatTracker() {
+    this.stopBeatTracker();
+    this.setupBeatAnalyser();
+    if (!this.analyser) return;
+    if (this.audioCtx?.state === 'suspended') {
+      this.audioCtx.resume().catch(() => {});
+    }
+
+    let lastBeat = 0;
+    const loop = () => {
+      if (!this.playing) {
+        this.stopBeatTracker();
+        return;
+      }
+
+      this.analyser.getByteFrequencyData(this.freqData);
+      const bassEnergy = (this.freqData[1] + this.freqData[2] + this.freqData[3]) / 3;
+      const now = performance.now();
+
+      if (bassEnergy > 160 && now - lastBeat > 320) {
+        lastBeat = now;
+        if (!this.capri.busy && !this.capri.dragging) {
+          const act = this.capri.stance === 'sit' ? 'perch_dance' : 'dance';
+          this.capri.perform?.(act);
+        }
+      }
+
+      this.beatAnimId = requestAnimationFrame(loop);
+    };
+
+    this.beatAnimId = requestAnimationFrame(loop);
+  }
+
+  stopBeatTracker() {
+    if (this.beatAnimId) {
+      cancelAnimationFrame(this.beatAnimId);
+      this.beatAnimId = null;
+    }
+    if (this.capri && !this.capri.busy && !this.capri.dragging) {
+      this.capri.endAct?.(false);
+    }
   }
 
   syncState() {

@@ -33,7 +33,7 @@ function getRecordingsDir() {
 
 function getReplaysDir() {
   const config = configStore.load();
-  const dir = config.system.replayDir || path.join(app.getPath('videos') || path.join(app.getPath('home'), 'Videos'), 'Capri_Clips');
+  const dir = config.system.replayDir || path.join(app.getPath('videos') || path.join(app.getPath('home'), 'Videos'), 'Capri-Replays');
   fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
@@ -202,11 +202,11 @@ async function saveInstantReplay(arrayBuffer, mimeType = 'video/webm') {
     const isH264 = mimeType.includes('mp4') || mimeType.includes('avc1') || mimeType.includes('h264');
     const tempExt = isH264 ? 'mp4' : 'webm';
     const tempPath = path.join(dir, `_clip_temp_${timeTag}.${tempExt}`);
-    const clipFileName = `Clip_${timeTag}.mp4`;
+    const clipFileName = `Capri_Replay_${timeTag}.mp4`;
     const clipPath = path.join(dir, clipFileName);
 
     const buf = Buffer.isBuffer(arrayBuffer) ? arrayBuffer : Buffer.from(arrayBuffer);
-    if (!buf || buf.length < 5000) {
+    if (!buf || buf.length < 500) {
       return { ok: false, error: 'Dữ liệu bộ đệm Instant Replay quá nhỏ hoặc trống.' };
     }
 

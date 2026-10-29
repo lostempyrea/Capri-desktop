@@ -29,9 +29,9 @@ loadEnvFile();
 
 function getVideosPath() {
   try {
-    return path.join(app.getPath('videos'), 'Capri_Clips');
+    return path.join(app.getPath('videos'), 'Capri-Replays');
   } catch {
-    return path.join(process.env.USERPROFILE || process.env.HOME || '.', 'Videos', 'Capri_Clips');
+    return path.join(process.env.USERPROFILE || process.env.HOME || '.', 'Videos', 'Capri-Replays');
   }
 }
 

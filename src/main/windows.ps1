@@ -4,7 +4,7 @@
 #
 #   powershell -File windows.ps1 <capri hwnd> <capri pid>
 
-param([long]$Self = 0, [int]$ParentPid = 0)
+param([long]$Self = 0, [int]$ParentPid = 0, [switch]$Once)
 $ErrorActionPreference = 'Stop'
 
 Add-Type -TypeDefinition @"
@@ -80,6 +80,11 @@ public static class CapriWindows {
 "@
 
 [CapriWindows]::Init()
+if ($Once) {
+  $snap = [CapriWindows]::Snapshot($Self)
+  [Console]::Out.WriteLine($snap)
+  exit 0
+}
 $last = ''
 $tick = 0
 while ($true) {

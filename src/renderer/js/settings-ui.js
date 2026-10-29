@@ -248,6 +248,16 @@ export class SettingsUI {
               <input id="cfg-user-random-nick" type="checkbox" checked>
               <label for="cfg-user-random-nick">Tự động gọi ngẫu nhiên "tèo" / "blue" khi chưa cài danh xưng</label>
             </div>
+
+            <div class="settings-form__divider"></div>
+            <div class="settings-form__group">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <label style="margin: 0;">Ký ức dài hạn của Capri về bạn (Long-term Memory: me.md):</label>
+                <button id="cfg-memory-save-btn" class="settings-btn" type="button" style="padding: 3px 12px; font-size: 11px;">LƯU KÝ ỨC</button>
+              </div>
+              <textarea id="cfg-user-memory-text" class="settings-textarea" style="width: 100%; height: 110px; font-family: var(--font-mono); font-size: 11px; padding: 8px; box-sizing: border-box; resize: vertical;" placeholder="Nhập thói quen, thông tin hoặc ghi chú bạn muốn Capri ghi nhớ dài lâu..."></textarea>
+              <span id="cfg-memory-status" style="font-size: 10px; color: var(--theme-text-dim);">Tự động nạp vào bộ não AI của Capri trong mọi cuộc hội thoại.</span>
+            </div>
           </section>
 
           <!-- TAB 1: APPEARANCE (GIAO DIỆN) -->
@@ -351,6 +361,15 @@ export class SettingsUI {
               </div>
             </div>
             <input id="cfg-theme-select" type="hidden" value="system">
+
+            <div class="settings-form__group" style="margin-top: 14px; margin-bottom: 6px;">
+              <label>Phông chữ hiển thị HUD & Terminal (Font Family):</label>
+              <select id="cfg-font-family" class="settings-select">
+                <option value="ShareTechMono">Share Tech Mono (Cyberpunk HUD Standard)</option>
+                <option value="JetBrains Mono">JetBrains Mono (Developer Classic)</option>
+                <option value="Chakra Petch">Chakra Petch (Futuristic Display)</option>
+              </select>
+            </div>
 
             <div class="settings-form__divider"></div>
 
@@ -552,6 +571,11 @@ export class SettingsUI {
               <label for="cfg-gamer-pilot">Bật Gamer Auto-Pilot (Tự thu nhỏ khi mở Game hoặc Fullscreen, cảnh báo RAM > 90%)</label>
             </div>
 
+            <div class="settings-form__checkbox-row" style="margin-bottom: 16px;">
+              <input id="cfg-discord-rpc" type="checkbox" checked>
+              <label for="cfg-discord-rpc">Discord Local Rich Presence (Hiển thị trạng thái Capri qua Named Pipe)</label>
+            </div>
+
             <div class="settings-form__divider"></div>
 
             <h3 class="settings-pane__title">ANTIGRAVITY AGENT HOOK & TÍCH HỢP NỘI BỘ</h3>
@@ -580,7 +604,7 @@ export class SettingsUI {
 
         <footer class="settings-modal__footer">
           <div class="settings-modal__about">
-            <span id="cfg-app-version" class="settings-about__version">v1.3.3-cyberpunk-edition</span>
+            <span id="cfg-app-version" class="settings-about__version">v1.4.0-cyberpunk-edition</span>
             <span class="settings-about__sep">|</span>
             <a id="cfg-repo-link" class="settings-about__link" href="#" title="Mở trang mã nguồn gốc trên GitHub">GitHub: mochiiwuff/capri-desktop</a>
           </div>
@@ -874,6 +898,44 @@ export class SettingsUI {
       glitchVal.textContent = `${e.target.value}%`;
     });
 
+    // Long-Term Memory (me.md) Save Button
+    const saveMemBtn = modal.querySelector('#cfg-memory-save-btn');
+    const memArea = modal.querySelector('#cfg-user-memory-text');
+    const memStatus = modal.querySelector('#cfg-memory-status');
+    saveMemBtn?.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const text = memArea?.value || '';
+      saveMemBtn.disabled = true;
+      saveMemBtn.textContent = 'ĐANG LƯU...';
+      const res = await this.host.saveMemory(text);
+      saveMemBtn.disabled = false;
+      saveMemBtn.textContent = 'LƯU KÝ ỨC';
+      if (memStatus) {
+        memStatus.textContent = res?.ok ? 'Đã lưu ký ức me.md thành công!' : 'Lỗi khi lưu ký ức!';
+        setTimeout(() => {
+          memStatus.textContent = 'Tự động nạp vào bộ não AI của Capri trong mọi cuộc hội thoại.';
+        }, 3000);
+      }
+    });
+
+    // Font Family Select
+    const fontSelect = modal.querySelector('#cfg-font-family');
+    fontSelect?.addEventListener('change', (e) => {
+      e.stopPropagation();
+      const val = e.target.value;
+      document.documentElement.style.setProperty('--font-mono', `'${val}', 'JetBrains Mono', monospace`);
+      this.updateConfig({ system: { fontFamily: val } });
+    });
+
+    // Discord Local Named Pipe Rich Presence Toggle
+    const discordRpcCheck = modal.querySelector('#cfg-discord-rpc');
+    discordRpcCheck?.addEventListener('change', (e) => {
+      e.stopPropagation();
+      const enabled = e.target.checked;
+      this.host.discordRpcToggle?.(enabled);
+      this.updateConfig({ system: { discordRpc: enabled } });
+    });
+
     // Original source link
     modal.querySelector('#cfg-repo-link')?.addEventListener('click', (e) => {
       e.preventDefault();
@@ -1027,6 +1089,21 @@ export class SettingsUI {
     modal.querySelectorAll('.settings-theme-card').forEach((card) => {
       card.classList.toggle('is-active', card.dataset.theme === theme);
     });
+
+    const fontFamily = c.system?.fontFamily || 'ShareTechMono';
+    const fontSelect = modal.querySelector('#cfg-font-family');
+    if (fontSelect) fontSelect.value = fontFamily;
+    document.documentElement.style.setProperty('--font-mono', `'${fontFamily}', 'JetBrains Mono', monospace`);
+
+    const discordRpcCheck = modal.querySelector('#cfg-discord-rpc');
+    if (discordRpcCheck) discordRpcCheck.checked = c.system?.discordRpc !== false;
+
+    if (this.host?.getMemory) {
+      this.host.getMemory().then((mem) => {
+        const memArea = modal.querySelector('#cfg-user-memory-text');
+        if (memArea) memArea.value = mem || '';
+      }).catch(() => {});
+    }
 
     const langSelect = modal.querySelector('#cfg-lang-select');
     if (langSelect) langSelect.value = c.lang === 'en' ? 'en' : 'vi';

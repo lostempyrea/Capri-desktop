@@ -35,6 +35,9 @@ graphify-out/
 config.json
 chat-history.json
 user-profile.json
+me.md
+user-memory.md
+reference-csharp-capri/
 
 # Runtime Logs & Recorded Media
 *.log
@@ -43,6 +46,8 @@ captures/
 recordings/
 temp/
 *.wav
+!assets/voice/*.wav
+!src/renderer/assets/voice/*.wav
 *.mp4
 *.webm
 

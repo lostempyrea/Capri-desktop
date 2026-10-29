@@ -429,29 +429,80 @@ export const ACTS = {
       [2, { sy: 1.1, sx: 0.93, mane: 0.26, head: -0.04, smear: [0, -12], armL: 0.55, armR: 0.82 }],
     ],
   },
+
+  dangle: {
+    loop: true,
+    fps: 10,
+    keys: [
+      [3, { head: 0.12, mane: 0.1, bob: 4, arms: 0.75, sy: 1.08, sx: 0.94 }],
+      [3, { head: 0.08, mane: 0.05, bob: 2, arms: 0.65, sy: 1.05, sx: 0.96 }],
+      [3, { head: -0.06, mane: 0.08, bob: 0, arms: 0.8, sy: 1.09, sx: 0.93 }],
+      [3, { head: 0.02, mane: 0.06, bob: 3, arms: 0.7, sy: 1.06, sx: 0.95 }],
+    ],
+  },
+
+  dance: {
+    loop: true,
+    fps: 16,
+    keys: [
+      [2, { head: 0.18, mane: 0.22, tilt: 5, bob: -6, arms: 0.45, kickL: 0.3 }],
+      [2, { head: 0.05, mane: 0.1, tilt: 2, bob: -2, arms: 0.1, kickL: 0.1 }],
+      [2, { head: -0.18, mane: 0.22, tilt: -5, bob: -6, arms: -0.3, kickR: 0.3 }],
+      [2, { head: -0.05, mane: 0.1, tilt: -2, bob: -2, arms: 0.1, kickR: 0.1 }],
+    ],
+  },
+
+  perch_dance: {
+    loop: true,
+    fps: 16,
+    keys: [
+      [2, { head: 0.16, mane: 0.2, tilt: 4, bob: -4, arms: -0.2, kickL: 0.35, kickR: -0.1 }],
+      [2, { head: -0.16, mane: 0.2, tilt: -4, bob: -4, arms: -0.2, kickL: -0.1, kickR: 0.35 }],
+    ],
+  },
+
+  arrive: {
+    priority: 3,
+    keys: [
+      [1, { head: -0.15, mane: 0.3, bob: -12, sy: 1.2, sx: 0.85, arms: 0.5 }],
+      [2, { head: 0.1, mane: 0.1, bob: 4, sy: 0.85, sx: 1.15, arms: -0.3 }],
+      [3, { head: 0.05, mane: 0.05, bob: 0, sy: 1.02, sx: 0.98, arms: 0 }],
+      [2, { head: 0, mane: 0, bob: 0, sy: 1, sx: 1, arms: 0 }],
+    ],
+  },
+
+  perch_arrive: {
+    priority: 3,
+    keys: [
+      [1, { head: 0.1, mane: 0.2, bob: -6, arms: -0.3, kickL: 0.2, kickR: 0.2 }],
+      [2, { head: -0.05, mane: 0.1, bob: 2, arms: -0.42, kickL: 0.1, kickR: 0.1 }],
+      [2, { head: 0, mane: 0, bob: 0, arms: -0.42 }],
+    ],
+  },
 };
 
 export class Player {
   constructor(name, { dir = 0, reach = 1, at = performance.now() } = {}) {
     this.name = name;
-    this.act = ACTS[name];
+    this.act = ACTS[name] || ACTS.idle || ACTS.stand || { priority: 0, keys: [[1, {}]] };
     this.dir = dir;
     this.reach = reach;
     this.start = at;
-    this.total = this.act.keys.reduce((n, [hold]) => n + hold, 0);
+    this.total = (this.act.keys || []).reduce((n, [hold]) => n + hold, 0);
   }
 
   get priority() {
-    return this.act.priority ?? 0;
+    return this.act?.priority ?? 0;
   }
 
   // The drawing on screen at `now` ({ pose, index, cue }), or null once a one-shot act is over.
   sample(now) {
+    if (!this.act || !this.act.keys) return null;
     const fps = this.act.fps || SHEET_FPS;
     let f = Math.floor((now - this.start) / (1000 / fps));
     if (f >= this.total) {
       if (!this.act.loop) return null;
-      f %= this.total;
+      f %= Math.max(1, this.total);
     }
     const { keys } = this.act;
     for (let i = 0; i < keys.length; i++) {

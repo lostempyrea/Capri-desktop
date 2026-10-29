@@ -128,14 +128,18 @@ export class Chat {
     }
     this.listApps();
     host.focusOverlay(true); // the keyboard, for typing to her
+    const greetingText = pick(this.history.length ? (t.again || t.hello) : t.hello) || '';
+    if (greetingText) {
+      this.panel?.setTicker?.({ verb: 'HELLO', target: greetingText });
+    }
     const shown = this.panel.say({
       kind: 'chat',
       face: 'look',
-      badge: t.badge,
+      badge: '',
       tag: status.model.replace(/:latest$/, ''),
-      line: pick(this.history.length ? t.again : t.hello),
+      line: '', // Do not inject greeting bubble into chat history
       chat: {
-        placeholder: t.placeholder,
+        placeholder: greetingText || t.placeholder,
         send: t.send,
         close: t.close,
         noteTag: t.noteTag,
@@ -237,10 +241,43 @@ export class Chat {
     }
   }
 
+  isReplayTrigger(text) {
+    const lower = String(text || '').toLowerCase().trim();
+    return (
+      /^\/(?:clip|replay|instantreplay)$/i.test(lower) ||
+      /\b(clip\s+that(\s+shit)?|record\s+that|lưu\s+lại\s+pha\s+vừa\s+rồi|quay\s+lại\s+pha\s+vừa\s+rồi|clip\s+lại\s+đi)\b/i.test(lower)
+    );
+  }
+
   // Handle direct commands: Discord Bot, Media playback, or Assistant tools (screenshot, recording, apps, time, weather)
   async handleDirectCommand(text, isSpoken = false) {
     const cleanText = String(text || '').trim();
     if (!cleanText) return null;
+
+    // 0. Highest Priority: Instant Replay ("clip that", "record that", etc.)
+    if (this.isReplayTrigger(cleanText)) {
+      this.capri.pulse();
+      const res = await this.handleInstantReplay(isSpoken);
+      if (isSpoken) {
+        if (this.panel?.visible) {
+          this.panel.say({
+            kind: 'done',
+            badge: res.badge || 'REPLAY',
+            line: res.answer,
+            face: res.face || 'grin',
+            hold: 6000,
+          });
+        } else {
+          this.chip?.say?.({
+            text: res.answer,
+            badge: '[ CAPRI // REPLAY ]',
+            duration: 6000,
+            tts: true,
+          });
+        }
+      }
+      return res;
+    }
 
     // 1. Direct Discord Bot Control (commands or natural language)
     const discordReq = this.askedDiscord(cleanText);
@@ -278,6 +315,52 @@ export class Chat {
     if (assistantReq) {
       const res = await this.executeAssistantAction(assistantReq, isSpoken);
       return { handled: true, ...res };
+    }
+
+    // 2.5 Long-Term Memory remember fact
+    const memFact = this.askedRemember(cleanText);
+    if (memFact) {
+      this.capri.pulse();
+      await this.host.appendMemory?.(memFact);
+      this.voice.play('star');
+      const answer = `Tôi đã ghi nhớ vào bộ nhớ lâu dài (me.md): "${memFact}"!`;
+      if (isSpoken) {
+        if (this.panel?.visible) {
+          this.panel.say({ kind: 'done', badge: 'MEMORY', line: answer, face: 'grin', hold: 6000 });
+        } else {
+          this.chip?.say?.({ text: answer, badge: '[ CAPRI // MEMORY ]', duration: 6000, tts: true });
+        }
+      }
+      return { handled: true, badge: 'MEMORY', answer, face: 'grin' };
+    }
+
+    // 2.6 Safe Hands Tools (switch, minimize, shortcut, power)
+    const handsReq = this.askedHands(cleanText);
+    if (handsReq) {
+      this.capri.pulse();
+      let res = { ok: false };
+      if (handsReq.type === 'power') {
+        res = await this.host.systemPower?.(handsReq.action);
+      } else if (handsReq.type === 'switch') {
+        res = await this.host.switchApp?.(handsReq.target);
+      } else if (handsReq.type === 'minimize') {
+        res = await this.host.minimizeApp?.(handsReq.target);
+      } else if (handsReq.type === 'shortcut') {
+        res = await this.host.sendShortcut?.(handsReq.combo);
+      }
+      const answer = res?.message || (res?.ok ? 'Đã thực hiện xong thao tác máy tính.' : (res?.error || 'Không thể thực hiện.'));
+      if (res?.ok) {
+        this.capri.perform('hop');
+        this.voice.play('done');
+      }
+      if (isSpoken) {
+        if (this.panel?.visible) {
+          this.panel.say({ kind: 'done', badge: 'HANDS', line: answer, face: res?.ok ? 'smug' : 'aside', hold: 6000 });
+        } else {
+          this.chip?.say?.({ text: answer, badge: '[ CAPRI // HANDS ]', duration: 6000, tts: true });
+        }
+      }
+      return { handled: true, badge: 'HANDS', answer, face: res?.ok ? 'smug' : 'aside' };
     }
 
     // 3. Microphone selection & management (commands or natural language)
@@ -724,6 +807,37 @@ export class Chat {
       }
     }
 
+    return null;
+  }
+
+  askedRemember(text) {
+    const s = String(text || '').trim();
+    const m = /^(?:hãy\s+nhớ\s+(?:rằng|là)?|nhớ\s+(?:rằng|là)?|remember\s+(?:that)?)\s+(.+)$/i.exec(s);
+    return m ? m[1].trim() : null;
+  }
+
+  askedHands(text) {
+    const s = String(text || '').trim();
+    const lower = s.toLowerCase();
+
+    if (/\b(khóa\s*máy|lock\s*screen|khóa\s*màn\s*hình)\b/i.test(lower)) {
+      return { type: 'power', action: 'lock' };
+    }
+    if (/\b(ngủ\s*máy|sleep\s*(?:pc|computer)?|chế\s*độ\s*ngủ)\b/i.test(lower)) {
+      return { type: 'power', action: 'sleep' };
+    }
+    const switchM = /^(?:chuyển\s*(?:sang|qua)|switch\s*(?:to)?)\s+(?:cửa\s*sổ\s*|app\s+)?([a-zA-Z0-9\s_.-]+)$/i.exec(s);
+    if (switchM) {
+      return { type: 'switch', target: switchM[1].trim() };
+    }
+    const minM = /^(?:thu\s*nhỏ|hạ\s*xuống|minimize)\s+(?:cửa\s*sổ\s*|app\s+)?([a-zA-Z0-9\s_.-]+)$/i.exec(s);
+    if (minM) {
+      return { type: 'minimize', target: minM[1].trim() };
+    }
+    const scM = /^(?:nhấn\s*phím|bấm\s*phím|shortcut)\s+([a-zA-Z0-9+]+)$/i.exec(s);
+    if (scM) {
+      return { type: 'shortcut', combo: scM[1].trim() };
+    }
     return null;
   }
 

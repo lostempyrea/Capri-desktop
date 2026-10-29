@@ -469,6 +469,10 @@ export class Capri {
   perform(name, dir = 0, { reach = 1 } = {}) {
     if (this.stowed || this.dormant) return Promise.resolve(); // nobody to act: she's in her biochip, or just her mask
     const act = ACTS[name];
+    if (!act) {
+      console.warn(`[capri] unknown act requested: ${name}`);
+      return Promise.resolve();
+    }
     if (reducedMotion.matches && act.fps === 24) {
       if (act.flip) this.facing *= -1;
       return Promise.resolve();
@@ -1568,6 +1572,7 @@ export class Capri {
 
   bindPointer() {
     let down = null;
+    let dragSamples = [];
     this.canvas.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       if (this.hit(e.clientX, e.clientY)) this.onMenu?.(); // right-click: her menu
@@ -1587,11 +1592,16 @@ export class Capri {
         return;
       }
       down = { x: e.clientX, y: e.clientY, pos: { ...this.pos } };
+      dragSamples = [{ x: e.clientX, y: e.clientY, t: performance.now() }];
     });
     window.addEventListener('mousemove', (e) => {
       this.mouse = { x: e.clientX, y: e.clientY }; // a window she's in watches it
       if (down) {
         const dx = e.clientX - down.x, dy = e.clientY - down.y;
+        const now = performance.now();
+        dragSamples.push({ x: e.clientX, y: e.clientY, t: now });
+        if (dragSamples.length > 5) dragSamples.shift();
+
         if (!this.dragging && Math.hypot(dx, dy) > 5 && !this.busy) {
           if (this.root.closest('.holo-character-stage')) return; // Keep large Capri anchored in stage
           this.dragging = true;
@@ -1601,6 +1611,7 @@ export class Capri {
           }
           this.endAct(false);
           this.setStance('stand');
+          this.perform('dangle');
           this.p.glitch = 0.18;
           this.p.split = 2;
           this.onTeleport?.('start');
@@ -1622,32 +1633,109 @@ export class Capri {
       const wasDragging = this.dragging;
       down = null;
       this.dragging = false;
+
+      let vx = 0, vy = 0;
+      if (dragSamples.length >= 2) {
+        const p1 = dragSamples[0];
+        const p2 = dragSamples[dragSamples.length - 1];
+        const dt = (p2.t - p1.t) / 1000;
+        if (dt > 0.015) {
+          vx = (p2.x - p1.x) / dt;
+          vy = (p2.y - p1.y) / dt;
+        }
+      }
+      dragSamples = [];
+
       if (wasDragging) {
         tween(this.p, { glitch: 0, split: 0 }, 200, ease.out);
         this.onTeleport?.('end');
-        this.drop();
+        this.drop(vx, vy);
       } else {
         this.onClick?.();
       }
     });
   }
 
-  // Let go of her: onto a ledge if her hips are right at one, otherwise she falls.
-  drop() {
+  // Let go of her: onto a ledge if her hips are right at one, otherwise she falls or tosses.
+  async drop(vx = 0, vy = 0) {
+    if (Math.hypot(vx, vy) > 280) {
+      let curX = this.pos.x;
+      let curY = this.pos.y;
+      let velX = clamp(vx, -1600, 1600) * 0.45;
+      let velY = clamp(vy, -1600, 1600) * 0.45;
+      const gravity = 1400;
+      let lastT = performance.now();
+
+      const inertiaStep = async () => {
+        const now = performance.now();
+        const dt = Math.min(0.04, (now - lastT) / 1000);
+        lastT = now;
+        curX += velX * dt;
+        curY += velY * dt;
+        velY += gravity * dt;
+        velX *= 0.95;
+
+        if (curX <= 40 || curX >= this.view.w - 40) {
+          velX = -velX * 0.4;
+          curX = clamp(curX, 40, this.view.w - 40);
+        }
+
+        if (curY >= this.floor) {
+          curY = this.floor;
+          this.pos = { x: curX, y: curY };
+          this.place();
+          this.perform('arrive');
+          this.voice?.play('land');
+          return;
+        }
+
+        this.pos = { x: curX, y: curY };
+        this.place();
+
+        if (Math.abs(velX) < 25 && Math.abs(velY) < 25) {
+          await this.snapToLedges();
+          return;
+        }
+        requestAnimationFrame(inertiaStep);
+      };
+      requestAnimationFrame(inertiaStep);
+      return;
+    }
+
+    await this.snapToLedges();
+  }
+
+  async snapToLedges() {
+    let ledges = this.windows?.wins || [];
+    try {
+      if (this.host?.getLedges) {
+        const snap = await this.host.getLedges();
+        if (snap?.wins?.length) {
+          ledges = snap.wins;
+          this.windows = snap;
+        }
+      }
+    } catch {}
+
     const s = this.scale;
     const hip = this.pos.y - (SPRITE.feet.y - SPRITE.hip) * s;
-    for (const win of this.windows.wins) {
-      if (!this.canSit(win) || Math.abs(hip - win.y) > 26) continue;
-      if (this.pos.x < win.x + 40 || this.pos.x > win.x + win.w - 40 || this.covered(win, this.pos.x)) continue;
+    for (const win of ledges) {
+      if (!this.canSit(win) || Math.abs(hip - win.y) > 28) continue;
+      if (this.pos.x < win.x + 30 || this.pos.x > win.x + win.w - 30 || this.covered(win, this.pos.x)) continue;
       const dx = this.pos.x - win.x;
       this.pos = this.seat(win, dx);
       this.setStance('sit', { perch: { id: win.id, dx } });
-      this.perform('plop');
-      this.voice.play('land');
+      this.perform('arrive');
+      this.voice?.play('land');
       return;
     }
-    if (this.pos.y < this.floor - 2) this.fall();
-    else this.perform('land');
+
+    if (this.pos.y < this.floor - 2) {
+      this.fall();
+    } else {
+      this.perform('arrive');
+      this.voice?.play('land');
+    }
   }
 
   // When the pointer comes close she turns around to face it and cocks her head;
