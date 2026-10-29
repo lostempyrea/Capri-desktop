@@ -5,6 +5,7 @@
 //                Vanish Mode (stealth, opacity 0)
 
 import { COLORS, drawMask } from './fx.js';
+import { BiochipMatrixRig } from './biochip-matrix.js';
 import { rand, reducedMotion } from './util.js';
 
 const STEP = 1000 / 12;
@@ -12,7 +13,7 @@ const STEP = 1000 / 12;
 class Small {
   constructor(canvas, w, h) {
     this.canvas = canvas;
-    this.ctx = canvas.getContext('2d');
+    this.ctx = canvas.getContext('2d', { willReadFrequently: true });
     this.w = w;
     this.h = h;
     this.visible = false;
@@ -37,15 +38,15 @@ class Small {
     this.canvas.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
   }
 
-  contains(x, y, pad = 8) {
+  contains(x, y, pad = 0) {
     if (this.miniState === 'vanish' || this.canvas?.hidden) return false;
-    if (this.containsQuickInput && this.containsQuickInput(x, y)) return true;
+    if (typeof this.isAlphaSolid === 'function') {
+      return this.isAlphaSolid(x, y, 25);
+    }
     if (this.canvas) {
       const rect = this.canvas.getBoundingClientRect();
       if (rect.width > 0 && rect.height > 0) {
-        if (x >= rect.left - pad && x <= rect.right + pad && y >= rect.top - pad && y <= rect.bottom + pad) {
-          return true;
-        }
+        return x >= rect.left - pad && x <= rect.right + pad && y >= rect.top - pad && y <= rect.bottom + pad;
       }
     }
     return x >= this.x - pad && x <= this.x + this.w + pad && y >= this.y - pad && y <= this.y + this.h + pad;
@@ -132,13 +133,20 @@ export class Chip extends Small {
     if (Chip.instance) {
       return Chip.instance;
     }
-    // Generous canvas width/height to accommodate floating shards, status badge and audio ring
-    super(canvas, 240, 220);
+    // Tight container fitting actual mask silhouette with headroom for pulse ring & shards
+    super(canvas, 180, 180);
     Chip.instance = this;
+    this.cx = 90;
+    this.cy = 95;
     this.mode = 'idle';
     this.miniState = 'awake'; // 'awake' | 'hibernated' | 'vanish'
     this.audioRms = 0;
     this.statusBadge = null; // { text, type, until }
+
+    // Procedural 60 FPS Biochip Behavior Matrix Rig (8 States)
+    this.matrixRig = new BiochipMatrixRig();
+    this.matrixState = 'idle';
+    this.nextFlourishTime = performance.now() + rand(8000, 16000);
 
     // Natural blinking
     this.nextBlink = performance.now() + rand(2500, 5000);
@@ -151,10 +159,10 @@ export class Chip extends Small {
     // Static pool of 8 red data shards orbiting around the mask
     this.shards = Array.from({ length: 8 }, (_, i) => ({
       angle: (i / 8) * Math.PI * 2,
-      dist: rand(44, 75),
+      dist: rand(36, 64),
       speed: rand(0.015, 0.035) * (i % 2 === 0 ? 1 : -1),
       size: rand(2.5, 5),
-      driftY: rand(-10, 10)
+      driftY: rand(-8, 8)
     }));
 
     this.rafId = null;
@@ -171,10 +179,12 @@ export class Chip extends Small {
     this.voiceRef = null;
     this.isStatusActive = false;
 
-    // Quick-Chat Input controller
+    // Quick-Chat Input controller (Collapsed 2-button -> Expanded 250px)
     this.quickInputEl = null;
     this.quickInputField = null;
-    this.quickSendBtn = null;
+    this.quickTypeBtn = null;
+    this.quickMicBtn = null;
+    this.isQuickExpanded = false;
     this.chatRef = null;
     this.isQuickInputHovered = false;
     this.isQuickInputFocused = false;
@@ -188,6 +198,31 @@ export class Chip extends Small {
     this.dragDownTime = 0;
     this._pointerBound = false;
     this.capriRef = null;
+  }
+
+  // Pixel-Accurate Alpha Hit-Testing on Biochip canvas
+  isAlphaSolid(clientX, clientY, threshold = 25) {
+    if (this.miniState === 'vanish' || this.canvas?.hidden || !this.canvas) return false;
+    const rect = this.canvas.getBoundingClientRect();
+    if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) {
+      return false;
+    }
+    try {
+      const dprX = this.canvas.width / rect.width;
+      const dprY = this.canvas.height / rect.height;
+      const localX = Math.floor((clientX - rect.left) * dprX);
+      const localY = Math.floor((clientY - rect.top) * dprY);
+      if (localX >= 0 && localX < this.canvas.width && localY >= 0 && localY < this.canvas.height) {
+        const pixel = this.ctx.getImageData(localX, localY, 1, 1).data;
+        return pixel[3] > threshold;
+      }
+    } catch {}
+    return false;
+  }
+
+  contains(x, y) {
+    if (this.miniState === 'vanish' || this.canvas?.hidden) return false;
+    return this.isAlphaSolid(x, y, 25);
   }
 
   bindChat(chat) {
@@ -214,7 +249,19 @@ export class Chip extends Small {
 
     this.canvas.addEventListener('mousedown', (e) => {
       if (e.button !== 0) return;
-      if (e.target?.closest?.('#biochip-quick-input, #biochip-speech, #biochip-voice-pill')) return;
+      if (
+        e.target?.closest?.('.chip-quick-bar, .quick-input-btn, .quick-mic-btn, .quick-chat-input, #biochip-quick-input, .biochip-quick-input, #biochip-speech, #biochip-voice-pill') ||
+        this.isQuickExpanded ||
+        this.containsQuickInput(e.clientX, e.clientY)
+      ) {
+        this.isMouseDown = false;
+        this.hasDragged = false;
+        return;
+      }
+      // Pixel-Accurate Alpha Hit-Testing: ignore clicks in transparent margin
+      if (!this.isAlphaSolid(e.clientX, e.clientY, 25)) {
+        return;
+      }
       this.isMouseDown = true;
       this.hasDragged = false;
       this.dragStartX = e.screenX;
@@ -223,11 +270,30 @@ export class Chip extends Small {
       window.host?.setInteractive?.(true);
     });
 
-    window.addEventListener('mousemove', (e) => {
+    this.canvas.addEventListener('mousemove', (e) => {
+      // 1. TextPopup hit-testing priority: bypass canvas alpha when over popup or expanded
+      if (this.isQuickExpanded || this.containsQuickInput(e.clientX, e.clientY)) {
+        window.host?.setInteractive?.(true);
+        document.body.style.cursor = 'default';
+        return;
+      }
+
+      const solid = this.isAlphaSolid(e.clientX, e.clientY, 25);
+      if (solid) {
+        document.body.style.cursor = 'pointer';
+        window.host?.setInteractive?.(true);
+      } else {
+        document.body.style.cursor = '';
+        if (!this.panel?.visible && !document.body.classList.contains('is-panel-open')) {
+          window.host?.setInteractive?.(false);
+        }
+      }
+
       if (!this.isMouseDown) return;
       const dist = Math.hypot(e.screenX - this.dragStartX, e.screenY - this.dragStartY);
       if (dist > 8) {
         this.hasDragged = true;
+        this.setMatrixState('panic');
         if (this.capriRef && typeof this.capriRef.perform === 'function' && !this.capriRef.busy) {
           try {
             this.capriRef.perform('dangle');
@@ -236,29 +302,53 @@ export class Chip extends Small {
       }
     });
 
+    this.canvas.addEventListener('mouseleave', () => {
+      if (this.isQuickExpanded || (this.quickInputEl && !this.quickInputEl.hidden && this.isQuickInputHovered)) {
+        window.host?.setInteractive?.(true);
+        return;
+      }
+      document.body.style.cursor = '';
+      if (!this.panel?.visible && !document.body.classList.contains('is-panel-open')) {
+        window.host?.setInteractive?.(false);
+      }
+    });
+
     window.addEventListener('mouseup', (e) => {
+      if (
+        e.target?.closest?.('.chip-quick-bar, .quick-input-btn, .quick-mic-btn, .quick-chat-input, #biochip-quick-input, .biochip-quick-input') ||
+        (this.containsQuickInput && this.containsQuickInput(e.clientX, e.clientY))
+      ) {
+        this.isMouseDown = false;
+        this.hasDragged = false;
+        return;
+      }
       if (!this.isMouseDown) return;
       const wasDragged = this.hasDragged;
       this.isMouseDown = false;
       this.hasDragged = false;
+      if (this.matrixState === 'panic') {
+        this.setMatrixState(this.miniState === 'hibernated' ? 'sleep' : 'idle');
+      }
 
       if (!wasDragged) {
-        // Distance <= 8px: Open/close large chat panel immediately
-        if (this.panel) {
-          if (this.panel.visible) {
-            this.panel.hide();
-            this.chat?.close?.();
-          } else {
-            if (typeof this.chat?.start === 'function') {
-              this.chat.start();
-            } else if (typeof this.panel.openPanel === 'function') {
-              this.panel.openPanel();
+        // Distance <= 8px: Open/close large chat panel immediately ONLY if on solid mask alpha
+        if (typeof this.isAlphaSolid !== 'function' || this.isAlphaSolid(e.clientX, e.clientY, 25)) {
+          if (this.panel) {
+            if (this.panel.visible) {
+              this.panel.hide();
+              this.chat?.close?.();
             } else {
-              this.panel.show();
+              if (typeof this.chat?.start === 'function') {
+                this.chat.start();
+              } else if (typeof this.panel.openPanel === 'function') {
+                this.panel.openPanel();
+              } else {
+                this.panel.show();
+              }
             }
           }
+          window.dispatchEvent(new CustomEvent('capri:toggle-chat'));
         }
-        window.dispatchEvent(new CustomEvent('capri:toggle-chat'));
       }
     });
   }
@@ -277,19 +367,53 @@ export class Chip extends Small {
     this.quickInputField.disabled = true;
     this.quickInputField.placeholder = text;
     this.quickInputEl?.classList.add('is-recording');
+    // State 3: Type button must NEVER be disabled when mic is active
+    if (this.quickTypeBtn) {
+      this.quickTypeBtn.disabled = false;
+      this.quickTypeBtn.style.pointerEvents = 'auto';
+    }
   }
 
   unlockQuickInput() {
-    if (!this.quickInputField) return;
-    this.quickInputField.disabled = false;
-    this.quickInputField.style.pointerEvents = 'auto';
-    this.quickInputEl?.classList.remove('is-recording');
+    if (!this.quickInputEl) return;
+    this.quickInputEl.classList.remove('is-recording');
+    if (this.quickInputField) {
+      this.quickInputField.disabled = false;
+      this.quickInputField.readOnly = false;
+      this.quickInputField.style.pointerEvents = 'auto';
+    }
+    if (this.quickTypeBtn) {
+      this.quickTypeBtn.disabled = false;
+      this.quickTypeBtn.style.pointerEvents = 'auto';
+    }
+    if (this.quickMicBtn) {
+      this.quickMicBtn.disabled = false;
+      this.quickMicBtn.style.pointerEvents = 'auto';
+    }
     this.updateI18n('en');
+  }
+
+  setMicStatus(status) {
+    if (!this.quickMicBtn) return;
+    const dot = this.quickMicBtn.querySelector('.panel__mic-dot');
+    if (dot) {
+      dot.classList.remove('is-listening', 'is-recording', 'is-off');
+      if (status === 'recording') {
+        dot.classList.add('is-recording');
+        this.quickInputEl?.classList.add('is-recording');
+      } else if (status === 'listening' || status === 'idle') {
+        dot.classList.add('is-listening');
+        this.quickInputEl?.classList.remove('is-recording');
+      } else {
+        dot.classList.add('is-off');
+        this.quickInputEl?.classList.remove('is-recording');
+      }
+    }
   }
 
   updateI18n(_lang = 'en') {
     if (this.quickInputField && !this.quickInputField.disabled) {
-      this.quickInputField.placeholder = 'Quick message or command...';
+      this.quickInputField.placeholder = 'Type a message...';
     }
   }
 
@@ -297,7 +421,9 @@ export class Chip extends Small {
     this.quickInputEl = document.getElementById('biochip-quick-input');
     if (!this.quickInputEl) return;
     this.quickInputField = document.getElementById('biochip-quick-input-field');
+    this.quickTypeBtn = document.getElementById('biochip-quick-type-btn');
     this.quickMicBtn = document.getElementById('biochip-quick-mic-btn') || document.getElementById('biochip-quick-send-btn');
+    this.isQuickExpanded = false;
 
     // Block context menu on Biochip and Quick-Input
     this.quickInputEl.addEventListener('contextmenu', (e) => {
@@ -309,14 +435,24 @@ export class Chip extends Small {
       e.stopPropagation();
     });
 
-    // Prevent any mouse/pointer events inside Quick-Input from bubbling up to window/Biochip
-    ['mousedown', 'mouseup', 'click', 'pointerdown', 'pointerup'].forEach((evt) => {
-      this.quickInputEl.addEventListener(evt, (e) => {
-        e.stopPropagation();
+    // Step 2: Prevent all pointer/mouse events inside Quick-Input from bubbling up to window/Biochip
+    const stopEvents = ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click', 'dblclick'];
+    [this.quickInputEl, this.quickTypeBtn, this.quickMicBtn, this.quickInputField].forEach((el) => {
+      if (!el) return;
+      stopEvents.forEach((evt) => {
+        el.addEventListener(evt, (e) => {
+          e.stopPropagation();
+        });
       });
-      this.quickInputField?.addEventListener(evt, (e) => {
-        e.stopPropagation();
-      });
+    });
+
+    // Outside click collapse for State 2 (EXPANDED_INPUT)
+    window.addEventListener('pointerdown', (e) => {
+      if (!this.isQuickExpanded) return;
+      if (e.target?.closest?.('.chip-quick-bar, .biochip-quick-input, #biochip-quick-input, .biochip-popup')) {
+        return;
+      }
+      this.collapseQuickInput();
     });
 
     // Keep visible on input hover or interaction
@@ -327,7 +463,9 @@ export class Chip extends Small {
 
     this.quickInputEl.addEventListener('mouseleave', () => {
       this.isQuickInputHovered = false;
-      this.hideQuickInput();
+      if (!this.isQuickInputFocused && !this.isQuickExpanded) {
+        this.hideQuickInput();
+      }
     });
 
     // Biochip canvas hover listeners
@@ -336,13 +474,51 @@ export class Chip extends Small {
     });
 
     this.canvas.addEventListener('mouseleave', () => {
-      this.hideQuickInput();
+      if (!this.isQuickExpanded) {
+        this.hideQuickInput();
+      }
     });
 
-    // Input focus and click tracking (ensures unlock)
-    this.quickInputField?.addEventListener('click', () => {
-      this.unlockQuickInput();
+    // Type button click: switches to EXPANDED_INPUT, interrupts mic if recording
+    const handleTypeAction = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      // Interrupt active mic session cleanly
+      if (
+        this.voiceInput?.state === 'COMMAND_ACTIVE' ||
+        this.voiceInput?.state === 'COMMAND' ||
+        this.voiceInput?.isProcessing ||
+        this.quickInputEl?.classList.contains('is-recording')
+      ) {
+        this.voiceInput?.deactivateCommandMode?.();
+        this.unlockQuickInput();
+      }
+      if (!this.isQuickExpanded) {
+        this.expandQuickInput();
+      } else {
+        const text = this.quickInputField?.value?.trim();
+        if (text) {
+          this.submitQuickInput();
+        } else {
+          this.collapseQuickInput();
+        }
+      }
+    };
+    this.quickTypeBtn?.addEventListener('click', handleTypeAction);
+    this.quickTypeBtn?.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      window.host?.focusInput?.();
       window.host?.setFocusable?.(true);
+      window.host?.setInteractive?.(true);
+    });
+
+    // Input focus and click tracking
+    this.quickInputField?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.unlockQuickInput();
+      window.host?.focusInput?.();
+      window.host?.setFocusable?.(true);
+      window.host?.setInteractive?.(true);
       this.quickInputField.focus();
     });
 
@@ -350,12 +526,22 @@ export class Chip extends Small {
       this.unlockQuickInput();
       this.isQuickInputFocused = true;
       this.cancelQuickInputHide();
+      window.host?.focusInput?.();
       window.host?.setFocusable?.(true);
+      window.host?.setInteractive?.(true);
     });
 
     this.quickInputField?.addEventListener('blur', () => {
       this.isQuickInputFocused = false;
-      setTimeout(() => this.hideQuickInput(), 150);
+      const text = this.quickInputField?.value?.trim();
+      if (!text) {
+        this.collapseQuickInput();
+      }
+      setTimeout(() => {
+        if (!this.isQuickExpanded) {
+          this.hideQuickInput();
+        }
+      }, 200);
     });
 
     this.quickInputField?.addEventListener('keydown', (e) => {
@@ -364,15 +550,20 @@ export class Chip extends Small {
         e.preventDefault();
         this.submitQuickInput();
       } else if (e.key === 'Escape') {
+        e.preventDefault();
         this.quickInputField.value = '';
-        this.quickInputField.blur();
+        this.collapseQuickInput();
         this.hideQuickInput(true);
       }
     });
 
+    // Mic button click: toggles ACTIVE_MIC state without disabling Type button
     this.quickMicBtn?.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
+      if (this.isQuickExpanded) {
+        this.collapseQuickInput();
+      }
       if (this.voiceInput?.toggleCommandMode) {
         this.voiceInput.toggleCommandMode();
       } else {
@@ -381,12 +572,60 @@ export class Chip extends Small {
     });
   }
 
+  expandQuickInput() {
+    if (!this.quickInputEl) return;
+    this.isQuickExpanded = true;
+    this.quickInputEl.classList.add('is-expanded', 'expanded');
+    this.unlockQuickInput();
+    window.host?.focusInput?.();
+    window.host?.setFocusable?.(true);
+    window.host?.setInteractive?.(true);
+    if (this.quickInputField) {
+      this.quickInputField.disabled = false;
+      this.quickInputField.readOnly = false;
+      this.quickInputField.style.display = 'block';
+      this.quickInputField.style.pointerEvents = 'auto';
+      // Multiple focus attempts with increasing delays for Electron overlay timing
+      this.quickInputField.focus();
+      requestAnimationFrame(() => {
+        this.quickInputField?.focus();
+      });
+      setTimeout(() => {
+        if (this.isQuickExpanded && this.quickInputField) {
+          this.quickInputField.focus();
+        }
+      }, 80);
+      setTimeout(() => {
+        if (this.isQuickExpanded && this.quickInputField) {
+          this.quickInputField.focus();
+        }
+      }, 150);
+    }
+    this.updateLayoutPositions();
+  }
+
+  collapseQuickInput() {
+    if (!this.quickInputEl) return;
+    this.isQuickExpanded = false;
+    this.quickInputEl.classList.remove('is-expanded', 'expanded');
+    if (this.quickInputField) {
+      this.quickInputField.value = '';
+      this.quickInputField.blur();
+    }
+    setTimeout(() => {
+      if (!this.isQuickExpanded && this.quickInputField) {
+        this.quickInputField.style.display = 'none';
+      }
+    }, 220);
+    this.updateLayoutPositions();
+  }
+
   submitQuickInput() {
     if (!this.quickInputField) return;
     const text = this.quickInputField.value.trim();
     if (!text) return;
     this.quickInputField.value = '';
-    this.quickInputField.blur();
+    this.collapseQuickInput();
     this.hideQuickInput(true);
 
     if (this.chatRef?.handleSpokenCommand) {
@@ -407,17 +646,19 @@ export class Chip extends Small {
   }
 
   hideQuickInput(immediate = false) {
-    if (this.isQuickInputFocused && !immediate) return;
+    if ((this.isQuickInputFocused || this.isQuickExpanded) && !immediate) return;
     this.cancelQuickInputHide();
     if (immediate) {
       if (this.quickInputEl) {
+        this.collapseQuickInput();
         this.quickInputEl.classList.remove('is-visible');
         this.quickInputEl.hidden = true;
       }
       return;
     }
     this.quickInputHideTimer = setTimeout(() => {
-      if (!this.isQuickInputHovered && !this.isQuickInputFocused && this.quickInputEl) {
+      if (!this.isQuickInputHovered && !this.isQuickInputFocused && !this.isQuickExpanded && this.quickInputEl) {
+        this.collapseQuickInput();
         this.quickInputEl.classList.remove('is-visible');
         setTimeout(() => {
           if (!this.quickInputEl.classList.contains('is-visible')) {
@@ -440,9 +681,14 @@ export class Chip extends Small {
   }
 
   containsQuickInput(x, y) {
-    if (!this.quickInputEl || this.quickInputEl.hidden) return false;
-    const r = this.quickInputEl.getBoundingClientRect();
-    return x >= r.left - 6 && x <= r.right + 6 && y >= r.top - 6 && y <= r.bottom + 6;
+    const el = this.quickInputEl || document.getElementById('biochip-quick-input') || document.querySelector('.chip-quick-bar, .biochip-popup');
+    if (!el || el.hidden) return false;
+    const r = el.getBoundingClientRect();
+    if (!r || r.width <= 0 || r.height <= 0) return false;
+    const padX = 12;
+    const padTop = 16;
+    const padBottom = 12;
+    return x >= r.left - padX && x <= r.right + padX && y >= r.top - padTop && y <= r.bottom + padBottom;
   }
 
   initSpeechBubble() {
@@ -467,7 +713,7 @@ export class Chip extends Small {
   }
 
   say({ text = '', icon = '', badge = '[ CAPRI // VOICE ]', duration = 6000, tts = true }) {
-    if (this.panel?.visible || !this.panel?.el?.hidden || document.body.classList.contains('is-panel-open')) {
+    if (this.panel?.visible || document.body.classList.contains('is-panel-open')) {
       return;
     }
     this.isStatusActive = false;
@@ -561,7 +807,7 @@ export class Chip extends Small {
 
     const centerHorizontally = (el, defaultW) => {
       const rect = el.getBoundingClientRect();
-      const elW = Math.max(120, rect.width > 0 ? rect.width : (el.offsetWidth || defaultW));
+      const elW = Math.max(40, rect.width > 0 ? rect.width : (el.offsetWidth || defaultW));
       let left = chipCenter.x - elW / 2;
       left = Math.max(margin, Math.min(vw - margin - elW, left));
       el.style.left = `${Math.round(left)}px`;
@@ -572,23 +818,38 @@ export class Chip extends Small {
     const hasQuickInput = Boolean(this.quickInputEl && !this.quickInputEl.hidden);
     const hasSpeech = Boolean(this.speechEl && !this.speechEl.hidden);
 
-    const quickH = 34;
+    const quickH = 32;
+    const quickW = this.isQuickExpanded ? 250 : 96;
     const speechH = hasSpeech ? Math.max(40, this.speechEl.getBoundingClientRect().height || this.speechEl.offsetHeight || 60) : 0;
 
-    const chipHeadY = this.y + 45;
-    const chipBottomY = this.y + 190;
+    // Mask visual boundaries: center is at (this.x + this.cx, this.y + this.cy)
+    // Mask top edge is ~36px above center; bottom edge is ~36px below center
+    const maskVisualTopY = this.y + (this.cy - 36);
+    const maskVisualBottomY = this.y + (this.cy + 36);
+
+    const positionQuickBar = (topY) => {
+      if (!this.quickInputEl) return;
+      this.quickInputEl.style.top = `${Math.round(topY)}px`;
+      if (this.isQuickExpanded) {
+        // Expand smoothly to the right from the collapsed anchor point
+        let anchorLeft = chipCenter.x - 96 / 2;
+        anchorLeft = Math.max(margin, Math.min(vw - margin - 250, anchorLeft));
+        this.quickInputEl.style.left = `${Math.round(anchorLeft)}px`;
+        this.quickInputEl.style.transform = 'none';
+      } else {
+        centerHorizontally(this.quickInputEl, 96);
+      }
+    };
 
     if (isLowerHalf) {
-      // Stack upwards: [Speech Bubble] -> [Quick Input] -> [Biochip]
-      let quickTop = chipHeadY - quickH - 8;
+      // Stack upwards: [Speech Bubble] -> [Quick Input] -> [Biochip Mask]
+      // Quick Input sits snug 6px above mask top (no floating gap)
+      let quickTop = maskVisualTopY - quickH - 6;
       quickTop = Math.max(margin, Math.min(vh - margin - quickH, quickTop));
-      if (this.quickInputEl) {
-        centerHorizontally(this.quickInputEl, 250);
-        this.quickInputEl.style.top = `${Math.round(quickTop)}px`;
-      }
+      positionQuickBar(quickTop);
 
-      const baseAboveSpeech = hasQuickInput ? (quickTop - 8) : chipHeadY;
-      let speechTop = baseAboveSpeech - speechH - (hasQuickInput ? 0 : 8);
+      const baseAboveSpeech = hasQuickInput ? (quickTop - 6) : (maskVisualTopY - 6);
+      let speechTop = baseAboveSpeech - speechH;
       speechTop = Math.max(margin, Math.min(vh - margin - speechH, speechTop));
       if (this.speechEl) {
         centerHorizontally(this.speechEl, 240);
@@ -600,15 +861,13 @@ export class Chip extends Small {
         this.voicePillEl.style.display = 'none';
       }
     } else {
-      // Stack downwards: [Biochip] -> [Quick Input] -> [Speech Bubble]
-      let quickTop = chipBottomY + 8;
+      // Stack downwards: [Biochip Mask] -> [Quick Input] -> [Speech Bubble]
+      // Quick Input sits snug 6px below mask bottom (no floating gap)
+      let quickTop = maskVisualBottomY + 6;
       quickTop = Math.max(margin, Math.min(vh - margin - quickH, quickTop));
-      if (this.quickInputEl) {
-        centerHorizontally(this.quickInputEl, 250);
-        this.quickInputEl.style.top = `${Math.round(quickTop)}px`;
-      }
+      positionQuickBar(quickTop);
 
-      const baseBelowSpeech = hasQuickInput ? (quickTop + quickH + 8) : (chipBottomY + 8);
+      const baseBelowSpeech = hasQuickInput ? (quickTop + quickH + 6) : (maskVisualBottomY + 6);
       let speechTop = baseBelowSpeech;
       speechTop = Math.max(margin, Math.min(vh - margin - speechH, speechTop));
       if (this.speechEl) {
@@ -633,8 +892,8 @@ export class Chip extends Small {
   }
 
   place(w, h, customX = null, customY = null) {
-    this.cx = 120;
-    this.cy = 130;
+    this.cx = 90;
+    this.cy = 95;
     const targetX = customX !== null ? customX : MARGIN.left;
     const targetY = customY !== null ? customY : (h - MARGIN.bottom - this.h);
     this.moveTo(targetX, targetY);
@@ -652,8 +911,9 @@ export class Chip extends Small {
     const targetX = customX !== null ? customX : Math.floor(50 + Math.random() * (maxX - 50));
     const targetY = customY !== null ? customY : Math.floor(50 + Math.random() * (maxY - 50));
 
+    this.setMatrixState('transit');
     this.canvas.classList.add('is-glitching');
-    this.canvas.style.opacity = '0.2';
+    this.canvas.style.opacity = '0.4';
     setTimeout(() => {
       this.moveTo(targetX, targetY);
       this.face = { x: this.x + this.cx, y: this.y + this.cy };
@@ -662,8 +922,9 @@ export class Chip extends Small {
       } catch {}
       this.canvas.style.opacity = '1';
       this.canvas.classList.remove('is-glitching');
+      this.setMatrixState('idle');
       this.wake();
-    }, 150);
+    }, 200);
   }
 
   center() {
@@ -767,8 +1028,32 @@ export class Chip extends Small {
     this.panel?.setTicker?.(null);
   }
 
+  setMatrixState(state) {
+    if (this.matrixState === state) return;
+    this.matrixState = state;
+    console.log(`[chip] Matrix State -> ${state}`);
+  }
+
   setMode(mode) {
     this.mode = mode;
+    const m = String(mode).toLowerCase();
+    if (m === 'sleep' || m === 'dormant' || m === 'hibernated') {
+      this.setMatrixState('sleep');
+    } else if (m === 'dangle' || m === 'panic' || m === 'drag' || m === 'alert') {
+      this.setMatrixState('panic');
+    } else if (m === 'active' || m === 'talk' || m === 'sing' || m === 'joy') {
+      this.setMatrixState('active');
+    } else if (m === 'wink') {
+      this.setMatrixState('wink');
+    } else if (m === 'glitch' || m === 'error') {
+      this.setMatrixState('glitch');
+    } else if (m === 'overdrive') {
+      this.setMatrixState('overdrive');
+    } else if (m === 'transit' || m === 'teleport' || m === 'warp') {
+      this.setMatrixState('transit');
+    } else if (m === 'idle' || m === 'standby' || m === 'work') {
+      this.setMatrixState('idle');
+    }
   }
 
   setPointer(mouse) {
@@ -883,14 +1168,42 @@ export class Chip extends Small {
       ctx.restore();
     }
 
-    // --- 3. Mask & Eyes Logic ---
-    let eyes = [0, 0];
+    // --- 3. Mask & Eyes Logic (Procedural 60 FPS 8-State Rig) ---
+    let eyes = [1, 1];
     let look = null;
     let bob = 0;
 
-    if (this.miniState === 'awake') {
+    // Resolve current active matrix state
+    let state = this.matrixState || 'idle';
+    if (this.miniState === 'hibernated') {
+      state = 'sleep';
+    } else if (this.isMouseDown && this.hasDragged) {
+      state = 'panic';
+    } else if (this.audioRms > 0.08 || this.mode === 'active' || this.mode === 'talk' || this.mode === 'sing') {
+      state = 'active';
+    } else if (state === 'idle' && !calm) {
+      // Natural idle flourishes: occasional wink or micro-glitch
+      if (now > this.nextFlourishTime) {
+        const flourish = Math.random() < 0.7 ? 'wink' : 'glitch';
+        this.matrixState = flourish;
+        const duration = flourish === 'wink' ? 750 : 220;
+        setTimeout(() => {
+          if (this.matrixState === flourish) {
+            this.matrixState = 'idle';
+          }
+        }, duration);
+        this.nextFlourishTime = now + rand(9000, 18000);
+      }
+    }
+
+    if (state === 'sleep' || this.miniState === 'hibernated') {
+      // Hibernated Mini: eyes closed v v, no breathing bob
+      eyes = [0, 0];
+      look = null;
+      bob = 0;
+    } else {
       // Breathing float: smooth sin wave
-      bob = calm ? 0 : Math.sin(now / 450) * 3;
+      bob = calm ? 0 : Math.sin(now / 360) * 3;
 
       // Natural eye blinking
       if (!this.isBlinking && now > this.nextBlink) {
@@ -915,15 +1228,19 @@ export class Chip extends Small {
         const dy = (this.pointer.y - (this.y + this.cy)) * 0.12;
         look = { x: Math.max(-10, Math.min(10, dx)), y: Math.max(-8, Math.min(8, dy)) };
       }
-    } else {
-      // Hibernated Mini: eyes closed v v, no breathing bob
-      eyes = [0, 0];
-      look = null;
-      bob = 0;
     }
 
-    const shake = this.pointer && !calm ? rand(-1, 1) : 0;
-    drawMask(ctx, this.cx + shake, this.cy + bob, K, { eyes, look });
+    const shake = (this.pointer && !calm && state === 'panic') ? rand(-2, 2) : 0;
+
+    // Render Procedural 60 FPS Biochip Behavior Matrix Rig
+    this.matrixRig.render(ctx, this.cx + shake, this.cy + bob, K, {
+      state,
+      now,
+      look,
+      eyes,
+      audioRms: effectiveRms,
+      calm
+    });
 
     // --- 4. Bulletproof Floating Status Badges ---
     if (this.statusBadge) {
@@ -942,7 +1259,7 @@ export class Chip extends Small {
     const boxW = Math.max(120, textWidth + 24);
     const boxH = 26;
     const bx = this.cx - boxW / 2;
-    const by = 16;
+    const by = 8;
 
     let bg = '#0f172a';
     let border = '#00f0ff';

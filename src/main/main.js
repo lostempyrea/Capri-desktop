@@ -812,6 +812,12 @@ function registerIpc() {
     if (on) overlay.focus();
     else overlay.blur();
   });
+  ipcMain.on('window:focus-input', (_e) => {
+    if (!overlay || overlay.isDestroyed()) return;
+    overlay.setFocusable(true);
+    overlay.focus();
+    overlay.setIgnoreMouseEvents(false, { forward: true });
+  });
   // her report card's copy button: a picture of that part of the overlay, on the clipboard
   ipcMain.handle('panel:copy', async (_e, rect) => {
     const image = await overlay.webContents.capturePage(rect);

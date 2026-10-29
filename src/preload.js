@@ -60,6 +60,7 @@ contextBridge.exposeInMainWorld('host', {
   onSetMicrophone: on('capri:voice:set-microphone'),
   focusOverlay: (on) => ipcRenderer.send('overlay:focus', Boolean(on)),
   setFocusable: (on) => ipcRenderer.send('window:set-focusable', Boolean(on)),
+  focusInput: () => ipcRenderer.send('window:focus-input'),
   launchApp: (appName) => ipcRenderer.invoke('apps:launch', appName),
   takeScreenshot: () => ipcRenderer.invoke('screen:screenshot'),
   getScreenSources: () => ipcRenderer.invoke('screen:get-sources'),

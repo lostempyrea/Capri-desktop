@@ -191,7 +191,7 @@ body {
 #fx {
   position: fixed;
   inset: 0;
-  z-index: 10;
+  z-index: 2147483646 !important;
   pointer-events: none !important;
 }
 
@@ -362,86 +362,274 @@ body.is-panel-open #biochip-voice-pill {
   display: none !important;
 }
 
-/* ---------- Biochip Quick-Chat Input Dock (Unified with original Ticker offset shadow & sharp chamfer) ---------- */
+/* ---------- Biochip Quick-Chat Input Dock (Collapsed 2-button [Type | Mic] -> Expanded 250px) ---------- */
 .biochip-quick-input {
   position: fixed;
-  z-index: 99999;
+  z-index: 2147483647 !important;
   user-select: none;
-  width: 260px;
+  width: 72px; /* baseline spec reference */
+  width: 96px;
+  min-width: 96px;
   filter: drop-shadow(3px 3px 0 var(--theme-primary, var(--violet)));
-  will-change: transform;
+  will-change: width, transform, opacity;
   opacity: 0;
   visibility: hidden;
   transform: translateY(6px);
-  transition: opacity 0.22s var(--ease-out), transform 0.22s var(--ease-out), visibility 0.22s;
-  pointer-events: auto;
+  transition: width 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s var(--ease-out), transform 0.22s var(--ease-out), visibility 0.22s;
+  pointer-events: auto !important;
+  overflow: visible;
 }
 
-.biochip-quick-input.is-visible {
+.chip-quick-bar,
+.biochip-popup {
+  position: fixed;
+  z-index: 2147483647 !important;
+  user-select: none;
+  width: 72px;
+  width: 96px;
+  min-width: 96px;
+  filter: drop-shadow(3px 3px 0 var(--theme-primary, var(--violet)));
+  will-change: width, transform, opacity;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(6px);
+  transition: width 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s var(--ease-out), transform 0.22s var(--ease-out), visibility 0.22s;
+  pointer-events: auto !important;
+  overflow: visible;
+}
+
+/* Invisible Hover Bridge connecting Biochip bottom and Quick Bar */
+.biochip-quick-input::before,
+.chip-quick-bar::before,
+.biochip-popup::before {
+  content: '';
+  position: absolute;
+  top: -14px;
+  left: -8px;
+  right: -8px;
+  height: 14px;
+  pointer-events: auto !important;
+}
+
+.biochip-quick-input::after,
+.chip-quick-bar::after,
+.biochip-popup::after {
+  content: '';
+  position: absolute;
+  bottom: -14px;
+  left: -8px;
+  right: -8px;
+  height: 14px;
+  pointer-events: auto !important;
+}
+
+.biochip-quick-input.is-visible,
+.chip-quick-bar.is-visible,
+.biochip-popup.is-visible {
   opacity: 1;
   visibility: visible;
   transform: translateY(0);
 }
 
+.biochip-quick-input.is-expanded {
+  width: 250px;
+  min-width: 250px;
+}
+
+.biochip-quick-input.expanded,
+.chip-quick-bar.is-expanded,
+.chip-quick-bar.expanded,
+.biochip-popup.is-expanded,
+.biochip-popup.expanded {
+  width: 250px;
+  min-width: 250px;
+}
+
 .biochip-quick-input__plate {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   background: var(--ink) !important;
-  padding: 4px 6px 4px 9px;
+  padding: 2px 6px;
   clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
-  gap: 6px;
+  gap: 0;
   border: none !important;
   box-shadow: none !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
+  box-sizing: border-box;
+  width: 100%;
+  height: 32px;
+  overflow: visible;
+  pointer-events: auto !important;
 }
 
-.biochip-quick-input__dot {
+.biochip-quick-input__btn,
+.chip-quick-bar button,
+.biochip-quick-input button,
+.quick-input-btn,
+.quick-mic-btn {
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--theme-primary, var(--green));
+  padding: 0;
+  margin: 0;
+  cursor: pointer !important;
+  pointer-events: auto !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease, transform 0.15s ease;
   flex: none;
-  width: 6px;
-  height: 6px;
-  background: var(--green);
-  animation: blink 700ms steps(2, jump-none) infinite;
+  min-width: 34px !important;
+  min-height: 32px !important;
+  width: 34px;
+  height: 32px;
+  position: relative;
+  z-index: 2;
 }
 
-.biochip-quick-input__field {
-  flex: 1;
+.quick-input-btn {
+  order: 1;
+  position: relative;
+  pointer-events: auto !important;
+  flex: none;
+}
+.quick-input-btn::after {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  cursor: pointer;
+  pointer-events: auto !important;
+}
+
+.quick-mic-btn {
+  order: 4;
+  position: relative;
+  pointer-events: auto !important;
+  flex: none;
+  margin-left: auto;
+}
+.quick-mic-btn::after {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  cursor: pointer;
+  pointer-events: auto !important;
+}
+
+.biochip-quick-input__btn svg,
+.biochip-quick-input__btn path,
+.biochip-quick-input__btn span:not(.panel__mic-dot),
+.biochip-quick-input__btn *,
+.chip-quick-bar button svg,
+.chip-quick-bar button path,
+.chip-quick-bar button *,
+.biochip-quick-input button svg,
+.biochip-quick-input button path,
+.biochip-quick-input button *,
+.quick-input-btn svg,
+.quick-input-btn path,
+.quick-input-btn *,
+.quick-mic-btn svg,
+.quick-mic-btn path,
+.quick-mic-btn * {
+  pointer-events: none !important;
+}
+
+.biochip-quick-input__btn:hover,
+.chip-quick-bar button:hover,
+.biochip-quick-input button:hover,
+.quick-input-btn:hover,
+.quick-mic-btn:hover {
+  color: #ffffff;
+  transform: scale(1.12);
+}
+
+.quick-bar-divider {
+  order: 2;
+  color: var(--theme-primary, var(--green));
+  opacity: 0.5;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1;
+  user-select: none;
+  padding: 0;
+  margin: 0 auto;
+  text-align: center;
+  flex: none;
+  pointer-events: none;
+}
+
+.biochip-quick-input.is-expanded .quick-bar-divider,
+.biochip-quick-input.expanded .quick-bar-divider,
+.chip-quick-bar.is-expanded .quick-bar-divider,
+.chip-quick-bar.expanded .quick-bar-divider,
+.biochip-popup.is-expanded .quick-bar-divider,
+.biochip-popup.expanded .quick-bar-divider {
+  display: none !important;
+}
+
+.biochip-quick-input.is-expanded .quick-mic-btn,
+.biochip-quick-input.expanded .quick-mic-btn,
+.chip-quick-bar.is-expanded .quick-mic-btn,
+.chip-quick-bar.expanded .quick-mic-btn {
+  margin-left: auto;
+  flex: none;
+}
+
+.biochip-quick-input__field,
+.quick-chat-input {
+  order: 3;
+  display: none;
+  width: 0;
+  opacity: 0;
+  pointer-events: none;
   background: transparent;
   border: none;
   outline: none;
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--paper-2);
-  padding: 4px 0;
+  padding: 2px 6px;
+  box-sizing: border-box;
+  transition: opacity 0.15s ease;
+  position: relative;
+  z-index: 2;
 }
 
-.biochip-quick-input__field::placeholder {
+.biochip-quick-input.is-expanded .biochip-quick-input__field,
+.biochip-quick-input.expanded .biochip-quick-input__field,
+.chip-quick-bar.is-expanded .quick-chat-input,
+.chip-quick-bar.expanded .quick-chat-input,
+.biochip-popup.is-expanded .biochip-quick-input__field,
+.biochip-popup.expanded .biochip-quick-input__field,
+.biochip-quick-input.is-expanded .quick-chat-input,
+.biochip-quick-input.expanded .quick-chat-input {
+  display: block;
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  opacity: 1;
+  margin: 0 4px;
+  pointer-events: auto !important;
+}
+
+.biochip-quick-input__field::placeholder,
+.quick-chat-input::placeholder {
   color: var(--paper-2);
   opacity: 0.5;
 }
 
 .biochip-quick-input__mic,
-.biochip-quick-input__send {
-  background: var(--theme-surface, #120f17);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: var(--theme-primary, var(--green));
-  border-radius: 2px;
-  height: 24px;
-  padding: 2px 7px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  cursor: pointer;
-  font-size: 11px;
-  font-family: var(--font-mono);
-  transition: all 0.15s ease;
-}
-
-.biochip-quick-input__mic:hover,
-.biochip-quick-input__send:hover {
-  background: var(--theme-primary, var(--green));
-  color: var(--ink);
+.biochip-quick-input__type-btn,
+.quick-mic-btn,
+.quick-input-btn {
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
 }
 
 /* ---------- Voice Status Pill (Disabled in v1.3.0 in favor of top-left Ticker) ---------- */
@@ -966,12 +1154,12 @@ body.is-panel-open #biochip-voice-pill {
   box-sizing: border-box;
 }
 
-/* Left Column: Holo-Character-Stage (40% Flex, bounded container) */
+/* Left Column: Holo-Character-Stage (Dynamic Stage Width & Capri Model Scaling) */
 .holo-character-stage {
-  flex: 0 0 40%;
-  width: 40%;
-  min-width: 170px;
-  max-width: 320px;
+  flex: 0 0 var(--holo-stage-width, 210px) !important;
+  width: var(--holo-stage-width, 210px) !important;
+  min-width: var(--holo-stage-width, 210px) !important;
+  max-width: var(--holo-stage-width, 210px) !important;
   flex-shrink: 0;
   height: 100%;
   background: transparent !important;
@@ -981,7 +1169,7 @@ body.is-panel-open #biochip-voice-pill {
   position: relative;
   overflow: hidden;
   box-sizing: border-box;
-  transition: flex-basis 0.2s ease, width 0.2s ease;
+  transition: flex-basis 0.22s cubic-bezier(0.16, 1, 0.3, 1), width 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .holo-stage-wrap {
@@ -999,13 +1187,17 @@ body.is-panel-open #biochip-voice-pill {
   left: 50% !important;
   bottom: 0px !important;
   top: auto !important;
-  transform: translateX(-50%) !important;
+  transform: translateX(-50%) scale(var(--capri-model-scale, 1)) !important;
+  transform-origin: bottom center !important;
   z-index: 3;
   pointer-events: auto;
   cursor: pointer;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.holo-stage-wrap #capri canvas {
+.holo-stage-wrap #capri canvas,
+.holo-stage-wrap #sprite {
+  transform-origin: bottom center !important;
   pointer-events: auto;
   cursor: pointer;
 }

@@ -67,7 +67,24 @@ async function boot() {
   } else {
     chip.place(innerWidth, innerHeight);
   }
-  chip.show();
+  if (config.visible === false) {
+    config.visible = true;
+    try { host.setConfig({ visible: true }); } catch {}
+  }
+  // Keep chip strictly hidden during boot until Intro sequence completes
+  const willPlayIntro = Boolean(intro && config.visible !== false);
+  if (!willPlayIntro) {
+    chip.show();
+  } else {
+    chip.canvas.style.opacity = '0';
+    chip.canvas.style.visibility = 'hidden';
+    chip.canvas.style.pointerEvents = 'none';
+    chip.canvas.style.setProperty('opacity', '0', 'important');
+    chip.canvas.style.setProperty('visibility', 'hidden', 'important');
+    chip.canvas.style.setProperty('pointer-events', 'none', 'important');
+    chip.hideQuickInput?.(true);
+    chip.hideSpeech?.();
+  }
   const mask = new Mask(document.getElementById('mask'));
 
   const voice = new Voice();
@@ -131,19 +148,31 @@ async function boot() {
       return false;
     }
 
-    // 1. Mini Biochip (Single Instance)
-    const onChip = Boolean(chip.visible && chip.contains(clientX, clientY, 4));
-
-    // 1b. Quick-Chat Input / Overheads
+    // 1. Quick-Chat Input / Overheads: ABSOLUTE PRIORITY (no alpha check needed)
     let onQuickInput = false;
-    if (chip.quickInputEl && !chip.quickInputEl.hidden) {
-      const qr = chip.quickInputEl.getBoundingClientRect();
-      if (clientX >= qr.left && clientX <= qr.right && clientY >= qr.top && clientY <= qr.bottom) {
+    const quickPopupEl = chip?.quickInputEl || document.getElementById('biochip-quick-input') || document.querySelector('.chip-quick-bar, .biochip-popup');
+    if (quickPopupEl && !quickPopupEl.hidden) {
+      const qr = quickPopupEl.getBoundingClientRect();
+      const padX = 12;
+      const padTop = 16;
+      const padBottom = 12;
+      if (
+        qr.width > 0 && qr.height > 0 &&
+        clientX >= qr.left - padX && clientX <= qr.right + padX &&
+        clientY >= qr.top - padTop && clientY <= qr.bottom + padBottom
+      ) {
         onQuickInput = true;
       }
     }
+    if (chip.isQuickExpanded || onQuickInput) {
+      setInteractive(true);
+      return true;
+    }
 
-    // 2. Hologram Screen
+    // 2. Mini Biochip with Pixel-Accurate Alpha Hit-Testing
+    const onChip = Boolean(chip.visible && chip.contains(clientX, clientY));
+
+    // 3. Hologram Screen
     let onPanel = false;
     if (panel.visible) {
       const r = panel.rect();
@@ -152,7 +181,7 @@ async function boot() {
       }
     }
 
-    // 3. Settings Modal / Deck
+    // 4. Settings Modal / Deck
     let onSettings = false;
     if (settingsUI && settingsUI.isOpen) {
       const sr = settingsUI.rect ? settingsUI.rect() : null;
@@ -161,12 +190,12 @@ async function boot() {
       }
     }
 
-    // 4. Capri character body
+    // 5. Capri character body
     const onCapri = !capri.stowed && !capri.dormant && capri.hit(clientX, clientY);
 
     document.body.style.cursor = onChip ? 'pointer' : '';
 
-    const shouldBeInteractive = Boolean(onChip || onPanel || onSettings || onCapri || onQuickInput);
+    const shouldBeInteractive = Boolean(onChip || onPanel || onSettings || onCapri);
     setInteractive(shouldBeInteractive);
     return shouldBeInteractive;
   };
@@ -258,7 +287,12 @@ async function boot() {
   };
   window.addEventListener('mousedown', (e) => {
     if (e.button !== 0) return;
-    if (e.target?.closest?.('#biochip-quick-input, #biochip-speech, #biochip-voice-pill')) {
+    if (
+      e.target?.closest?.('.chip-quick-bar, .quick-input-btn, .quick-mic-btn, .quick-chat-input, #biochip-quick-input, .biochip-quick-input, #biochip-speech, #biochip-voice-pill') ||
+      chip?.isQuickExpanded ||
+      (chip?.containsQuickInput && chip.containsQuickInput(e.clientX, e.clientY))
+    ) {
+      chipDrag = null;
       return;
     }
 
@@ -323,6 +357,13 @@ async function boot() {
   });
 
   window.addEventListener('mouseup', (e) => {
+    if (
+      e.target?.closest?.('.chip-quick-bar, .quick-input-btn, .quick-mic-btn, .quick-chat-input, #biochip-quick-input, .biochip-quick-input') ||
+      (chip?.containsQuickInput && chip.containsQuickInput(e.clientX, e.clientY))
+    ) {
+      chipDrag = null;
+      return;
+    }
     if (chipDrag) {
       const wasDragging = chipDrag.isDragging;
       chipDrag = null;
@@ -335,12 +376,14 @@ async function boot() {
         refreshHit();
         return;
       }
-      // Click without drag (<= 8px): immediately toggle panel
-      if (panel.visible) {
-        panel.hide();
-        chat.close();
-      } else {
-        comeOut();
+      // Click without drag (<= 8px): immediately toggle panel ONLY when clicked directly on solid mask alpha
+      if (!chip.isAlphaSolid || chip.isAlphaSolid(e.clientX, e.clientY, 25)) {
+        if (panel.visible) {
+          panel.hide();
+          chat.close();
+        } else {
+          comeOut();
+        }
       }
       return;
     }
@@ -499,6 +542,15 @@ async function boot() {
   panel.setChipCenterGetter(() => chip.center());
   voice.onSpeakingState = (isSpeaking, volume) => {
     panel.setSpeaking(isSpeaking, volume);
+    if (isSpeaking) {
+      chip.setMode('active');
+      chip.setAudioRms(volume);
+    } else {
+      chip.setAudioRms(0);
+      if (chip.mode === 'active' || chip.matrixState === 'active') {
+        chip.setMode(capri.mode || 'idle');
+      }
+    }
   };
 
   // Instant Replay & Hardware Guardian host listeners
@@ -799,7 +851,39 @@ async function boot() {
       // --dev helpers
       case 'intro': // her intro again, as when she starts (still: as with Windows' animations off)
         panel.hide();
-        await capri.intro(capri.spot('post'), cmd.still ? { still: true } : {});
+        chip.canvas.style.opacity = '0';
+        chip.canvas.style.visibility = 'hidden';
+        chip.canvas.style.pointerEvents = 'none';
+        chip.hideQuickInput?.(true);
+        {
+          const chipCenter = chip.center();
+          await fx.intro({
+            to: { x: chipCenter.x, y: chipCenter.y, size: 70 },
+            label: 'hi',
+            caption: 'CAPRI // PROJECT CAPRICORN',
+            still: Boolean(cmd.still),
+            onCue: (cue) => {
+              if (cue === 'open') voice.play('charge');
+              else if (cue === 'hand') voice.play('land');
+              else if (cue === 'wave') voice.play('rise');
+              else if (cue === 'grab') { voice.play('land'); voice.play('bolt'); }
+              else if (cue === 'hi') {
+                if (voice.voiceMode === 'pack') voice.playCapriVoicePack?.('auto');
+                else voice.play('hello');
+              }
+              else if (cue === 'slip') voice.play('teleport-out');
+            },
+          });
+          if (typeof fx.burst === 'function') {
+            fx.burst(chipCenter.x, chipCenter.y, { color: '#00f0ff', count: 18 });
+          }
+          voice.play('teleport-in');
+          chip.show();
+          chip.canvas.style.opacity = '1';
+          chip.canvas.style.visibility = 'visible';
+          chip.canvas.style.pointerEvents = 'auto';
+          chip.wake();
+        }
         break;
       case 'pose':
         capri.debug = cmd.params || null;
@@ -841,8 +925,23 @@ async function boot() {
   });
 
   // 2. Play Legendary Startup Intro Animation
-  if (intro && config.visible !== false) {
+  if (willPlayIntro) {
     try {
+      // Biochip is strictly hidden during entire Intro
+      chip.canvas.style.opacity = '0';
+      chip.canvas.style.visibility = 'hidden';
+      chip.canvas.style.pointerEvents = 'none';
+      chip.canvas.style.setProperty('opacity', '0', 'important');
+      chip.canvas.style.setProperty('visibility', 'hidden', 'important');
+      chip.canvas.style.setProperty('pointer-events', 'none', 'important');
+      chip.hideQuickInput?.(true);
+      chip.hideSpeech?.();
+
+      const fxEl = document.getElementById('fx');
+      if (fxEl) {
+        fxEl.style.setProperty('z-index', '2147483646', 'important');
+      }
+
       const chipCenter = chip.center();
       await fx.intro({
         to: { x: chipCenter.x, y: chipCenter.y, size: 70 },
@@ -856,21 +955,38 @@ async function boot() {
           else if (cue === 'grab') {
             voice.play('land');
             voice.play('bolt');
-          } else if (cue === 'hi') voice.play('hello');
-          else if (cue === 'slip') voice.play('teleport-out');
+          } else if (cue === 'hi') {
+            if (voice.voiceMode === 'pack') {
+              voice.playCapriVoicePack?.('auto');
+            } else {
+              voice.play('hello');
+            }
+          } else if (cue === 'slip') voice.play('teleport-out');
         },
       });
+
+      // 100% of Intro complete: trigger convergence/glitch materialize effect
+      if (typeof fx.burst === 'function') {
+        fx.burst(chipCenter.x, chipCenter.y, { color: '#00f0ff', count: 18 });
+      }
+      voice.play('teleport-in');
     } catch (err) {
       console.warn('[app] Intro animation error:', err);
     }
   }
 
-  // Entrance: On boot, only the Mini Biochip is visible on desktop.
-  // Large Capri construct lives exclusively inside the Holo-Deck.
+  // Entrance: On boot, reveal Mini Biochip smoothly only AFTER Intro completes
   capri.wander = false;
   capri.possessWindows = false;
   capri.place();
   chip.show();
+  chip.canvas.style.transition = 'opacity 0.35s ease';
+  chip.canvas.style.opacity = '1';
+  chip.canvas.style.visibility = 'visible';
+  chip.canvas.style.pointerEvents = 'auto';
+  chip.canvas.style.removeProperty('opacity');
+  chip.canvas.style.removeProperty('visibility');
+  chip.canvas.style.removeProperty('pointer-events');
   chip.wake();
   panel.place();
   refreshHit();
@@ -911,7 +1027,6 @@ async function playSmartGreeting(voice, chip, panel, brain) {
   localStorage.setItem('capri.lastSeen', String(nowMs));
 
   let wav = null;
-  let textVi = '';
   let textEn = '';
 
   if (lastSeenStr) {
@@ -919,7 +1034,6 @@ async function playSmartGreeting(voice, chip, panel, brain) {
     const diffHours = (nowMs - lastSeen) / (1000 * 60 * 60);
     if (diffHours >= 24) {
       wav = 'assets/voice/hello-miss.wav';
-      textVi = 'Chào mừng quay trở lại! Đã lâu không gặp, tôi canh máy cho bạn suốt đấy.';
       textEn = 'Welcome back! Missed you, I have been watching your PC.';
     }
   }
@@ -927,24 +1041,25 @@ async function playSmartGreeting(voice, chip, panel, brain) {
   if (!wav) {
     if (hour >= 5 && hour < 12) {
       wav = 'assets/voice/hello-morning.wav';
-      textVi = 'Chào buổi sáng! Chúc một ngày làm việc tràn đầy năng lượng nhé.';
       textEn = 'Good morning! Ready for a productive day.';
     } else if (hour >= 23 || hour < 5) {
       wav = 'assets/voice/hello-late.wav';
-      textVi = 'Khuya lắm rồi đấy. Nhớ giữ gìn sức khỏe, đừng thức khuya quá nha!';
       textEn = 'Working late? Take care of yourself, do not stay up too late.';
+    } else {
+      textEn = 'Back already? System online and ready.';
     }
   }
 
-  if (wav) {
-    setTimeout(async () => {
+  const msg = textEn || 'Back already? System online and ready.';
+  setTimeout(async () => {
+    if (wav) {
       await voice.playSoundFile(wav);
-      const msg = textEn;
-      if (chip?.setStatusBadge) {
-        chip.setStatusBadge(msg, 'info', 7000);
-      }
-    }, 1800);
-  }
+    }
+    // Route greeting directly to Biochip Speech Bubble (not the top-left ticker)
+    if (chip?.say) {
+      chip.say({ text: msg, badge: '[ CAPRI // ONLINE ]', duration: 8000, tts: false });
+    }
+  }, 1800);
 }
 
 boot().catch((err) => {

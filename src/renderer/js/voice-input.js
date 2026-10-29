@@ -101,6 +101,11 @@ export class VoiceInput {
     this.chip = chip;
   }
 
+  setMicStatus(status) {
+    this.panel?.setMicStatus?.(status);
+    this.chip?.setMicStatus?.(status);
+  }
+
   showResponse({ line, badge = 'VOICE', hold = 5000, tts = true }) {
     if (this.panel?.visible) {
       this.panel.say({ kind: 'info', badge, line, hold });
@@ -168,7 +173,7 @@ export class VoiceInput {
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
         console.warn('[voice-input] getUserMedia not supported in this environment');
-        this.panel?.setMicStatus?.('off');
+        this.setMicStatus('off');
         return;
       }
 
@@ -214,7 +219,7 @@ export class VoiceInput {
       }
       this.audioSourceNode.connect(this.analyser);
 
-      this.panel?.setMicStatus?.(this.wakeWordEnabled ? 'idle' : 'off');
+      this.setMicStatus(this.wakeWordEnabled ? 'idle' : 'off');
       this.startVADLoop();
       console.log(`[voice-input] Microphone listening loop initialized (deviceId: ${this.currentMicId})`);
 
@@ -223,7 +228,7 @@ export class VoiceInput {
       this.updateMicTooltip();
     } catch (err) {
       console.warn('[voice-input] Microphone access error:', err.message);
-      this.panel?.setMicStatus?.('off');
+      this.setMicStatus('off');
       if (deviceId && deviceId !== 'default') {
         console.log('[voice-input] Falling back to default microphone...');
         await this.initAudio('default');
@@ -296,9 +301,9 @@ export class VoiceInput {
   setWakeWordEnabled(enabled) {
     this.wakeWordEnabled = Boolean(enabled);
     if (!this.wakeWordEnabled && this.state !== 'COMMAND_ACTIVE') {
-      this.panel?.setMicStatus?.('off');
+      this.setMicStatus('off');
     } else if (this.wakeWordEnabled && this.state === 'STANDBY') {
-      this.panel?.setMicStatus?.('idle');
+      this.setMicStatus('idle');
     }
   }
 
@@ -384,7 +389,7 @@ export class VoiceInput {
       };
       this.mediaRecorder.start(100);
       if (this.state === 'COMMAND_ACTIVE') {
-        this.panel?.setMicStatus?.('recording');
+        this.setMicStatus('recording');
       }
     } catch (err) {
       console.warn('[voice-input] MediaRecorder start error:', err);
@@ -519,7 +524,7 @@ export class VoiceInput {
     }
 
     this.panel?.setTicker?.({ verb: 'VOICE', target: 'LISTENING...' });
-    this.panel?.setMicStatus?.('recording');
+    this.setMicStatus('recording');
 
     // 7-second timeout: return to STANDBY if user does not speak
     clearTimeout(this.commandTimer);
@@ -543,7 +548,7 @@ export class VoiceInput {
     }
 
     this.panel?.setTicker?.(null);
-    this.panel?.setMicStatus?.(this.wakeWordEnabled ? 'idle' : 'off');
+    this.setMicStatus(this.wakeWordEnabled ? 'idle' : 'off');
   }
 
   wakeUpCapri() {

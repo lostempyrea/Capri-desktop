@@ -305,6 +305,8 @@ export class Panel {
       }
     } catch {}
 
+    this.setSize(this.width, this.height);
+
     try {
       this.userAvatar = localStorage.getItem('capri_user_avatar') || localStorage.getItem('capri.userAvatar') || DEFAULT_USER_AVATAR;
     } catch {
@@ -1783,6 +1785,33 @@ export class Panel {
     this.height = Math.round(h);
     this.el.style.width = `${this.width}px`;
     this.el.style.height = `${this.height}px`;
+
+    // Dynamic stage width and Capri model scale based on frame dimensions:
+    // Compact (580x380): Stage width 170px, scale 0.78
+    // Standard (700x450): Stage width 210px, scale 1.0
+    // Wide (840x520): Stage width 250px, scale 1.15
+    // Large (960x600): Stage width 290px, scale 1.30
+    let stageWidth = 210;
+    let modelScale = 1.0;
+    if (this.width <= 620) {
+      stageWidth = 170;
+      modelScale = 0.78;
+    } else if (this.width <= 760) {
+      stageWidth = 210;
+      modelScale = 1.0;
+    } else if (this.width <= 880) {
+      stageWidth = 250;
+      modelScale = 1.15;
+    } else {
+      stageWidth = 290;
+      modelScale = 1.30;
+    }
+
+    this.el.style.setProperty('--holo-stage-width', `${stageWidth}px`);
+    this.el.style.setProperty('--capri-model-scale', modelScale);
+    document.documentElement.style.setProperty('--holo-stage-width', `${stageWidth}px`);
+    document.documentElement.style.setProperty('--capri-model-scale', modelScale);
+
     this.updateResponsiveClasses(this.width);
     this.place();
   }

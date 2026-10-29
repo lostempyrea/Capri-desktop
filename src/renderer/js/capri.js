@@ -193,18 +193,30 @@ export class Capri {
   // Is this screen point on her body? Uses the cut-out's alpha so empty space stays click-through.
   hit(x, y) {
     if (this.hidden || this.root.closest('[hidden]') || this.p.alpha < 0.5) return false;
-    const s = this.scale;
+    let s = this.scale;
+    let posX = this.pos.x;
+    let fy = this.pos.y + this.bob;
+
+    if (this.root.closest('.holo-character-stage')) {
+      const rect = this.canvas.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) return false;
+        s = this.scale * (rect.width / (this.view.w || 220));
+        posX = rect.left + rect.width / 2;
+        fy = rect.bottom;
+      }
+    }
+
     if (!this.alphaMap) {
       const w = SPRITE.width * s * 0.35;
       const h = SPRITE.height * s;
-      return x >= this.pos.x - w && x <= this.pos.x + w && y >= this.pos.y - h && y <= this.pos.y;
+      return x >= posX - w && x <= posX + w && y >= fy - h && y <= fy;
     }
-    const fy = this.pos.y + this.bob;
     if (this.upside) {
-      x = 2 * this.pos.x - x;
+      x = 2 * posX - x;
       y = 2 * fy - y;
     }
-    const sx = SPRITE.feet.x + ((x - this.pos.x) / s) * this.facing;
+    const sx = SPRITE.feet.x + ((x - posX) / s) * this.facing;
     let sy = SPRITE.feet.y - (fy - y) / s;
     if (this.p.sit > 0 && sy > SPRITE.hip) {
       // same fold as the shader: short thighs, legs ridden up

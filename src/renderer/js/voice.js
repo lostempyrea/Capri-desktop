@@ -19,6 +19,8 @@ export class Voice {
     this.custom = new Map(); // cue -> AudioBuffer
     this.lastBlip = 0;
     this.ttsEnabled = true;
+    this.voiceMode = 'pack'; // 'pack' | 'synth' | 'tts' | 'muted'
+    this.voicePackClips = new Map();
     this.vfxVolume = 0.8;
     this.vfxGain = null;
     this.onSpeakingState = null; // (isSpeaking: boolean, volume: number) => void
@@ -79,6 +81,102 @@ export class Voice {
       this.ttsEnabled = Boolean(cfg.voice.ttsEnabled);
     } else if (cfg.ttsEnabled !== undefined) {
       this.ttsEnabled = Boolean(cfg.ttsEnabled);
+    }
+    if (cfg.voice?.voiceMode) {
+      this.voiceMode = cfg.voice.voiceMode;
+    } else if (cfg.voiceMode) {
+      this.voiceMode = cfg.voiceMode;
+    }
+  }
+
+  async playCapriVoicePack(context = 'auto', { onMouthVolume, onEnd } = {}) {
+    if (this.muted || this.voiceMode === 'muted') {
+      onEnd?.();
+      return;
+    }
+    try {
+      const ctx = this.ensure();
+      if (ctx.state === 'suspended') await ctx.resume();
+
+      // Contextual selection: morning / late / miss
+      let clipKey = 'miss';
+      const hour = new Date().getHours();
+      if (context === 'morning' || (context === 'auto' && hour >= 5 && hour < 12)) {
+        clipKey = 'morning';
+      } else if (context === 'late' || (context === 'auto' && (hour >= 22 || hour < 5))) {
+        clipKey = 'late';
+      } else {
+        clipKey = 'miss';
+      }
+
+      let buf = this.voicePackClips.get(clipKey);
+      if (!buf) {
+        // Original voice pack assets: hello-morning.wav, hello-miss.wav, hello-late.wav
+        const clipFileName = { morning: 'hello-morning.wav', miss: 'hello-miss.wav', late: 'hello-late.wav' }[clipKey] || `hello-${clipKey}.wav`;
+        const candidates = [
+          `../../assets/voice/${clipFileName}`,
+          `assets/voice/${clipFileName}`,
+          `src/renderer/assets/voice/${clipFileName}`,
+        ];
+        for (const url of candidates) {
+          try {
+            const res = await fetch(url);
+            if (res.ok) {
+              const data = await res.arrayBuffer();
+              buf = await ctx.decodeAudioData(data);
+              this.voicePackClips.set(clipKey, buf);
+              break;
+            }
+          } catch {}
+        }
+      }
+
+      if (!buf) {
+        this.play('hello');
+        onEnd?.();
+        return;
+      }
+
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      // Slight pitch & speed modulation for organic variation
+      src.playbackRate.value = 0.97 + Math.random() * 0.08;
+
+      const gain = ctx.createGain();
+      gain.gain.value = this.volume;
+
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      const dataArr = new Uint8Array(analyser.frequencyBinCount);
+
+      src.connect(gain);
+      gain.connect(analyser);
+      gain.connect(this.vfxGain || this.master);
+
+      let animId = null;
+      const trackMouth = () => {
+        analyser.getByteFrequencyData(dataArr);
+        let sum = 0;
+        for (let i = 0; i < dataArr.length; i++) sum += dataArr[i];
+        const avg = sum / dataArr.length;
+        const norm = Math.min(1, avg / 55);
+        onMouthVolume?.(norm);
+        this.onSpeakingState?.(true, norm);
+        animId = requestAnimationFrame(trackMouth);
+      };
+      trackMouth();
+
+      src.onended = () => {
+        if (animId) cancelAnimationFrame(animId);
+        onMouthVolume?.(0);
+        this.onSpeakingState?.(false, 0);
+        onEnd?.();
+      };
+
+      src.start();
+    } catch (err) {
+      console.warn('[voice] playCapriVoicePack error:', err);
+      onEnd?.();
     }
   }
 
@@ -351,18 +449,44 @@ export class Voice {
   }
 
   /**
-   * Cyberpunk Neural Speech Synthesis with Web Audio Glitch Filter & Lip-Sync
+   * Cyberpunk Neural Speech Synthesis with Cyber-Capri Timbre Filter & Lip-Sync
+   * Speaks the exact input text with female cybernetic cadence (pitch 1.10, highshelf 3500Hz)
    */
   async speakCyberpunk(text, { onMouthVolume, onEnd } = {}) {
-    if (!text || this.muted || !this.ttsEnabled) {
-      if (!this.muted && !this.ttsEnabled) {
-        this.play('blip', { mood: 'chat' });
-      }
+    if (!text || this.muted || this.voiceMode === 'muted') {
       onEnd?.();
       return;
     }
 
-    this.onSpeakingState?.(true, 0);
+    // 1. Capri Voice Pack: only for greetings or when text is empty / greeting flag
+    if (this.voiceMode === 'pack') {
+      if (!text || text === '__greeting__') {
+        await this.playCapriVoicePack('auto', { onMouthVolume, onEnd });
+        return;
+      }
+    }
+
+    // 2. Cyber Glitch Synth fallback if explicitly selected or TTS disabled
+    if (this.voiceMode === 'synth' || !this.ttsEnabled) {
+      this.play('blip', { mood: 'chat' });
+      let count = 0;
+      const blipFlap = setInterval(() => {
+        count++;
+        const vol = count % 2 === 0 ? 0.6 : 0.2;
+        onMouthVolume?.(vol);
+        this.onSpeakingState?.(true, vol);
+        if (count >= 6) {
+          clearInterval(blipFlap);
+          onMouthVolume?.(0);
+          this.onSpeakingState?.(false, 0);
+          onEnd?.();
+        }
+      }, 70);
+      return;
+    }
+
+    // 2. Neural / System TTS Engine with Cyber-Capri Vocal Filter
+    this.onSpeakingState?.(true, 0.3);
 
     try {
       const ctx = this.ensure();
@@ -383,38 +507,55 @@ export class Voice {
         const source = ctx.createBufferSource();
         source.buffer = audioBuf;
 
+        // Cyber-Capri Vocal Timbre: Pitch adjustment (1.08 - 1.12)
+        source.playbackRate.value = 1.10;
+
+        // High-shelf filter at 3500Hz (+4.5dB) for crisp cyber clarity
+        const highShelf = ctx.createBiquadFilter();
+        highShelf.type = 'highshelf';
+        highShelf.frequency.value = 3500;
+        highShelf.gain.value = 4.5;
+
+        // Cybernetic Peaking filter at 2200Hz (+2.0dB)
+        const cyberTone = ctx.createBiquadFilter();
+        cyberTone.type = 'peaking';
+        cyberTone.frequency.value = 2200;
+        cyberTone.Q.value = 1.5;
+        cyberTone.gain.value = 2.0;
+
         // Lip-sync Analyser Node
         const analyser = ctx.createAnalyser();
         analyser.fftSize = 256;
         const dataArr = new Uint8Array(analyser.frequencyBinCount);
 
-        // Cybernetic Glitch effect: comb delay + bandpass resonance
+        // Robotic subtle comb delay effect
         const dryGain = ctx.createGain();
-        dryGain.gain.value = 0.85;
+        dryGain.gain.value = 0.88;
 
         const delay = ctx.createDelay();
-        delay.delayTime.value = 0.028; // 28ms robotic offset
+        delay.delayTime.value = 0.024; // 24ms robotic offset
 
         const wetGain = ctx.createGain();
-        wetGain.gain.value = 0.22;
+        wetGain.gain.value = 0.18;
 
         const filter = ctx.createBiquadFilter();
         filter.type = 'bandpass';
         filter.frequency.value = 2400;
-        filter.Q.value = 2.5;
+        filter.Q.value = 2.2;
 
         source.connect(analyser);
-        source.connect(dryGain).connect(this.master);
-        source.connect(delay).connect(filter).connect(wetGain).connect(this.master);
+        source.connect(highShelf).connect(cyberTone);
+        cyberTone.connect(dryGain).connect(this.master);
+        cyberTone.connect(delay).connect(filter).connect(wetGain).connect(this.master);
 
-        // Mouth flapping loop
+        // Real-time lip-sync mouth flapping loop
         let animId = null;
         const trackMouth = () => {
           analyser.getByteFrequencyData(dataArr);
           let sum = 0;
           for (let i = 0; i < dataArr.length; i++) sum += dataArr[i];
           const avg = sum / dataArr.length;
-          const norm = Math.min(1, avg / 60);
+          const norm = Math.min(1, avg / 55);
           onMouthVolume?.(norm);
           this.onSpeakingState?.(true, norm);
           animId = requestAnimationFrame(trackMouth);
@@ -432,18 +573,28 @@ export class Voice {
         return;
       }
 
-      // Fallback: Web Speech Synthesis API
+      // Fallback: Web Speech Synthesis API with Female Cyber Timbre
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = 'en-US';
         utterance.rate = 1.05;
+        utterance.pitch = 1.15; // Female cyber timbre
+
+        const voices = window.speechSynthesis.getVoices?.() || [];
+        const femaleVoice = voices.find((v) =>
+          v.lang?.startsWith('en') &&
+          (v.name.includes('Zira') || v.name.includes('Female') || v.name.includes('Samantha') || v.name.includes('Natural') || v.name.includes('Ava') || v.name.includes('Jenny') || v.name.includes('Hazel'))
+        ) || voices.find((v) => v.lang?.startsWith('en')) || null;
+        if (femaleVoice) {
+          utterance.voice = femaleVoice;
+        }
 
         let mouthInterval = setInterval(() => {
-          const v = Math.random() > 0.4 ? 0.7 : 0.2;
+          const v = Math.random() > 0.4 ? 0.65 : 0.25;
           onMouthVolume?.(v);
           this.onSpeakingState?.(true, v);
-        }, 120);
+        }, 110);
 
         utterance.onend = () => {
           clearInterval(mouthInterval);

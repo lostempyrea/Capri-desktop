@@ -112,6 +112,7 @@ const DEFAULTS = {
   },
 
   voice: {
+    voiceMode: 'pack', // 'pack' | 'synth' | 'tts' | 'muted'
     engine: 'edge-tts', // 'edge-tts' | 'openai' | 'elevenlabs'
     edgeVoiceVi: 'vi-VN-HoaiMyNeural',
     edgeVoiceEn: 'en-US-JennyNeural',

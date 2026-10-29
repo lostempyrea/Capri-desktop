@@ -12,16 +12,21 @@
   <canvas id="fx" class="fx" aria-hidden="true"></canvas>
 
   <!-- Single Mini Biochip: ONLY ONE instance globally on desktop -->
-  <canvas id="chip" class="chip" aria-label="Capri’s biochip"></canvas>
+  <canvas id="chip" class="chip" aria-label="Capri’s biochip" style="opacity: 0; visibility: hidden; pointer-events: none;"></canvas>
   <!-- Legacy mask canvas permanently deactivated to eliminate duplicate chip spawning -->
   <canvas id="mask" class="chip" hidden style="display: none !important; pointer-events: none !important;" aria-hidden="true"></canvas>
 
-  <!-- Quick-Chat Input Dock (Revealed on Biochip hover) -->
-  <div id="biochip-quick-input" class="biochip-quick-input" hidden>
+  <!-- Quick-Chat Input Dock (Revealed on Biochip hover: [ Type | Mic ] expanding on type click) -->
+  <div id="biochip-quick-input" class="biochip-quick-input chip-quick-bar biochip-popup" hidden>
     <div class="biochip-quick-input__plate">
-      <span class="biochip-quick-input__dot" aria-hidden="true"></span>
-      <input id="biochip-quick-input-field" class="biochip-quick-input__field" type="text" maxlength="300" placeholder="Quick chat or command..." autocomplete="off" spellcheck="false">
-      <button id="biochip-quick-mic-btn" class="biochip-quick-input__mic holo-mic-btn" type="button" title="Voice Input (Alt+V)">
+      <button id="biochip-quick-type-btn" class="biochip-quick-input__btn biochip-quick-input__type-btn quick-input-btn" type="button" title="Type a message">
+        <svg class="holo-btn-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+        </svg>
+      </button>
+      <span class="quick-bar-divider" aria-hidden="true">|</span>
+      <input id="biochip-quick-input-field" class="biochip-quick-input__field quick-chat-input" type="text" maxlength="300" placeholder="Type a message..." autocomplete="off" spellcheck="false">
+      <button id="biochip-quick-mic-btn" class="biochip-quick-input__btn biochip-quick-input__mic quick-mic-btn" type="button" title="Voice Input (Alt+V)">
         <span class="panel__mic-dot is-off"></span>
         <svg class="holo-mic-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
       </button>

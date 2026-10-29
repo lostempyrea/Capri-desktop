@@ -69,6 +69,7 @@
     }
   },
   "voice": {
+    "voiceMode": "pack",
     "engine": "edge-tts",
     "edgeVoiceVi": "vi-VN-HoaiMyNeural",
     "edgeVoiceEn": "en-US-JennyNeural",

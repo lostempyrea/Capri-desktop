@@ -108,7 +108,7 @@ const I18N_SETTINGS = {
       frameTitle: 'FRAME DIMENSIONS & DISPLAY MODES',
       frameDesc: 'Configure frame geometry, frosted glass aesthetics, and Cyberpunk neon palettes.',
       frameSizeLabel: 'Holographic Frame Dimensions (Presets):',
-      presets: ['Compact', 'Standard', 'Expanded', 'Wide'],
+      presets: ['Compact', 'Standard', 'Wide', 'Large'],
       glassTitle: 'CLEAR GLASS TRANSLUCENCY MODE',
       glassToggle: 'Enable Clear Glass (Minimalist borders, maximum translucency)',
       opacityLabel: 'Background Opacity (0% - 95%):',
@@ -277,11 +277,11 @@ export class SettingsUI {
                   <span class="preset-dim">700 × 450</span>
                 </button>
                 <button class="settings-preset-btn" data-w="840" data-h="520" type="button">
-                  <span class="preset-name">Expanded</span>
+                  <span class="preset-name">Wide</span>
                   <span class="preset-dim">840 × 520</span>
                 </button>
                 <button class="settings-preset-btn" data-w="960" data-h="600" type="button">
-                  <span class="preset-name">Wide</span>
+                  <span class="preset-name">Large</span>
                   <span class="preset-dim">960 × 600</span>
                 </button>
               </div>
@@ -530,6 +530,16 @@ export class SettingsUI {
             <div class="settings-form__divider"></div>
 
             <div class="settings-form__group">
+              <label>Voice Output Mode:</label>
+              <select id="cfg-voice-mode" class="settings-select">
+                <option value="pack">Capri Voice Pack (Original Voice Assets)</option>
+                <option value="synth">Cyber Glitch Synth (Classic Beeps)</option>
+                <option value="tts">Neural / System TTS</option>
+                <option value="muted">Muted</option>
+              </select>
+            </div>
+
+            <div class="settings-form__group">
               <label>Neural TTS Engine:</label>
               <select id="cfg-tts-engine" class="settings-select">
                 <option value="edge-tts">Edge TTS (Natural Neural Voice)</option>
@@ -638,7 +648,7 @@ export class SettingsUI {
 
         <footer class="settings-modal__footer">
           <div class="settings-modal__about">
-            <span id="cfg-app-version" class="settings-about__version">v1.5.0-cyberpunk-edition</span>
+            <span id="cfg-app-version" class="settings-about__version">v1.5.2-cyberpunk-edition</span>
             <span class="settings-about__sep">|</span>
             <a id="cfg-repo-link" class="settings-about__link" href="#" title="Open Capri repository on GitHub">GitHub: lostempyrea/Capri-desktop</a>
           </div>
@@ -1013,12 +1023,47 @@ export class SettingsUI {
       });
     });
 
-    // Test TTS button
+    // Test Voice Output button
     modal.querySelector('#cfg-test-tts-btn')?.addEventListener('click', async (e) => {
       e.stopPropagation();
-      this.voice.play('blip');
-      const testMsg = 'Hệ thống giọng nói Capri Hologram Construct đang hoạt động tối ưu.';
-      await this.voice.speakCyberpunk(testMsg);
+      const testBtn = modal.querySelector('#cfg-test-tts-btn');
+      const mode = modal.querySelector('#cfg-voice-mode')?.value || 'pack';
+      if (testBtn) {
+        testBtn.disabled = true;
+        testBtn.textContent = 'TRANSMITTING...';
+      }
+
+      if (mode === 'muted') {
+        if (testBtn) {
+          testBtn.textContent = '[ MUTED ]';
+          setTimeout(() => { testBtn.disabled = false; testBtn.textContent = 'TEST CAPRI VOICE'; }, 1000);
+        }
+        return;
+      }
+
+      if (mode === 'pack') {
+        await this.voice.playCapriVoicePack?.('auto', {
+          onEnd: () => {
+            if (testBtn) { testBtn.disabled = false; testBtn.textContent = 'TEST CAPRI VOICE'; }
+          }
+        });
+        return;
+      }
+
+      if (mode === 'synth') {
+        this.voice.play('blip', { mood: 'chat' });
+        setTimeout(() => {
+          if (testBtn) { testBtn.disabled = false; testBtn.textContent = 'TEST CAPRI VOICE'; }
+        }, 600);
+        return;
+      }
+
+      // Mode is 'tts'
+      await this.voice.speakCyberpunk('Capri neural link active and synchronized.', {
+        onEnd: () => {
+          if (testBtn) { testBtn.disabled = false; testBtn.textContent = 'TEST CAPRI VOICE'; }
+        }
+      });
     });
 
     // Clear Chat History button
@@ -1108,6 +1153,9 @@ export class SettingsUI {
     modal.querySelector('#cfg-model-vision').value = c.apiVault?.activeModels?.vision || 'gemini-1.5-flash';
     const sttModel = modal.querySelector('#cfg-model-stt');
     if (sttModel) sttModel.value = c.apiVault?.activeModels?.stt || 'whisper-large-v3';
+
+    const voiceModeSelect = modal.querySelector('#cfg-voice-mode');
+    if (voiceModeSelect) voiceModeSelect.value = c.voice?.voiceMode || 'pack';
 
     modal.querySelector('#cfg-tts-engine').value = c.voice?.engine || 'edge-tts';
     modal.querySelector('#cfg-tts-toggle').checked = c.voice?.ttsEnabled ?? true;
@@ -1291,6 +1339,7 @@ export class SettingsUI {
         }
       },
       voice: {
+        voiceMode: modal.querySelector('#cfg-voice-mode')?.value || 'pack',
         engine: modal.querySelector('#cfg-tts-engine').value,
         glitchReverb: Number(modal.querySelector('#cfg-glitch-slider').value) / 100,
         inputDeviceId: modal.querySelector('#cfg-mic-select').value || null,
@@ -1327,7 +1376,7 @@ export class SettingsUI {
     } catch {}
     this.host.toggleAgentHook?.(patch.agentHookEnabled);
     this.voice.setVfxVolume?.(patch.vfxVolume);
-    this.voice.configure({ ttsEnabled: patch.voice.ttsEnabled, vfxVolume: patch.vfxVolume });
+    this.voice.configure({ ttsEnabled: patch.voice.ttsEnabled, vfxVolume: patch.vfxVolume, voiceMode: patch.voice.voiceMode });
     if (this.host?.restartDiscord) {
       try { this.host.restartDiscord(); } catch {}
     }
