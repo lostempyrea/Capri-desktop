@@ -82,81 +82,80 @@ export class Chat {
     this.panel?.appendChatMessage?.(role, content);
   }
 
-  bindChip(chip) {
-    this.chip = chip;
+  t(_vi, en) {
+    return en || _vi;
   }
 
-  get t() {
-    return this.brain.t.chat;
+  bindChip(chip) {
+    this.chip = chip;
   }
 
   async start() {
     const { capri, host, t } = this;
     if (this.open) {
-      this.panel.chatInput.focus();
+      this.panel.chatInput?.focus();
       return;
     }
     if (capri.stowed || capri.dormant) {
-      host.setConfig({ visible: true });
-      if (capri.stowed) await capri.unstow();
-      if (capri.dormant) await capri.rouse();
-      capri.forceRestoreInteraction?.();
-      this.panel.forceRestore?.();
+      try { host.setConfig({ visible: true }); } catch {}
+      try { if (capri.stowed) await capri.unstow(); } catch {}
+      try { if (capri.dormant) await capri.rouse(); } catch {}
+      try { capri.forceRestoreInteraction?.(); } catch {}
+      try { this.panel.forceRestore?.(); } catch {}
     }
-    capri.wake();
-    const status = await host.chatStatus();
-    if (!status.ok) {
-      // no Ollama, or nothing to talk with yet: what to do about it
-      const offline = status.error === 'offline';
-      capri.perform('curious', capri.towardCenter());
-      this.panel.say({
-        kind: 'info',
-        face: 'aside',
-        guide: true,
-        line: offline ? t.offline : t.noModel,
-        quote: offline ? t.offlineHow : t.noModelHow,
-        actions: offline
-          ? [{ id: 'get', label: t.getOllama, primary: true }, { id: 'ok', label: t.ok }]
-          : [{ id: 'ok', label: t.ok, primary: true }],
-        onAction: (id) => {
-          if (id === 'get') host.openOllama();
-          this.panel.hide();
-        },
-        hold: null,
-      });
-      return;
+    try { capri.wake?.(); } catch {}
+
+    // Ensure the panel DOM is displayed immediately
+    if (typeof this.panel.openPanel === 'function') {
+      this.panel.openPanel();
+    } else {
+      this.panel.show();
     }
-    this.listApps();
-    host.focusOverlay(true); // the keyboard, for typing to her
+
+    let status = { ok: false, model: 'offline' };
+    try {
+      status = await host.chatStatus();
+    } catch {}
+
+    const isModelOk = status && status.ok;
+    const modelTag = isModelOk ? status.model.replace(/:latest$/, '') : 'Ollama Offline';
+
+    try { this.listApps?.(); } catch {}
+    try { host.focusOverlay?.(true); } catch {}
+
     const greetingText = pick(this.history.length ? (t.again || t.hello) : t.hello) || '';
     if (greetingText) {
-      this.panel?.setTicker?.({ verb: 'HELLO', target: greetingText });
+      try { this.panel?.setTicker?.({ verb: 'HELLO', target: greetingText }); } catch {}
     }
-    const shown = this.panel.say({
+
+    const placeholderText = isModelOk
+      ? (greetingText || t.placeholder)
+      : 'Ollama offline. Start Ollama to chat, or run system tools...';
+
+    this.panel.say({
       kind: 'chat',
-      face: 'look',
+      face: isModelOk ? 'look' : 'aside',
       badge: '',
-      tag: status.model.replace(/:latest$/, ''),
+      tag: modelTag,
       line: '', // Do not inject greeting bubble into chat history
       chat: {
-        placeholder: greetingText || t.placeholder,
+        placeholder: placeholderText,
         send: t.send,
         close: t.close,
         noteTag: t.noteTag,
-        note: t.note,
+        note: isModelOk ? t.note : 'Local AI engine offline. Capri is running in autonomous system mode.',
       },
       onSend: (text) => this.send(text),
       onLeave: () => this.close(),
       hold: null,
     });
-    if (!shown) {
-      host.focusOverlay(false); // something more important is on (a permission prompt)
-      return;
-    }
+
     this.open = true;
-    this.panel.renderChatHistory?.(this.history);
-    setTimeout(() => this.panel.chatInput.focus(), 150); // once the overlay has the keyboard
-    capri.perform('hop');
+    try { this.panel.renderChatHistory?.(this.history); } catch (e) { console.error('[chat] render history err:', e); }
+    setTimeout(() => {
+      try { this.panel.chatInput?.focus(); } catch {}
+    }, 150);
+    try { capri.perform?.('hop'); } catch {}
     capri.nextMove = capri.nextGaze = performance.now() + STAY_MS;
   }
 
@@ -190,7 +189,7 @@ export class Chat {
 
   // Handle conversational AI queries on Biochip without opening the Hologram Chat Frame
   async handleSpokenQueryOnChip(text) {
-    this.chip?.setStatusBadge('Đang suy nghĩ...', 'stt', 12000);
+    this.chip?.setStatusBadge(this.t('Đang suy nghĩ...', 'Thinking...'), 'stt', 12000);
     this.capri.pulse();
     this.addMessage('user', text);
 
@@ -216,7 +215,10 @@ export class Chat {
     if (!res || !res.ok) {
       this.history.pop();
       this.saveHistory();
-      const errLine = `Xin lỗi, không thể kết nối tới mô hình AI: ${res?.error || 'Lỗi mạng'}`;
+      const errLine = this.t(
+        `Xin lỗi, không thể kết nối tới mô hình AI: ${res?.error || 'Lỗi mạng'}`,
+        `Sorry, unable to connect to AI model: ${res?.error || 'Network error'}`
+      );
       this.chip?.say?.({ text: errLine, badge: '[ CAPRI // ERROR ]', duration: 6000, tts: false });
       return;
     }
@@ -284,7 +286,7 @@ export class Chat {
     if (discordReq) {
       this.capri.pulse();
       const res = await this.host.discordCommand(discordReq.command, null, discordReq.song);
-      const answer = res?.message || (res?.ok ? 'Đã thực hiện lệnh Discord!' : 'Lỗi kết nối Discord!');
+      const answer = res?.message || (res?.ok ? this.t('Đã thực hiện lệnh Discord!', 'Discord command executed!') : this.t('Lỗi kết nối Discord!', 'Discord connection error!'));
       if (res?.ok) {
         this.capri.perform('hop');
         this.voice.play('blip');
@@ -323,7 +325,7 @@ export class Chat {
       this.capri.pulse();
       await this.host.appendMemory?.(memFact);
       this.voice.play('star');
-      const answer = `Tôi đã ghi nhớ vào bộ nhớ lâu dài (me.md): "${memFact}"!`;
+      const answer = this.t(`Tôi đã ghi nhớ vào bộ nhớ lâu dài (me.md): "${memFact}"!`, `Saved to long-term memory (me.md): "${memFact}"!`);
       if (isSpoken) {
         if (this.panel?.visible) {
           this.panel.say({ kind: 'done', badge: 'MEMORY', line: answer, face: 'grin', hold: 6000 });
@@ -348,7 +350,7 @@ export class Chat {
       } else if (handsReq.type === 'shortcut') {
         res = await this.host.sendShortcut?.(handsReq.combo);
       }
-      const answer = res?.message || (res?.ok ? 'Đã thực hiện xong thao tác máy tính.' : (res?.error || 'Không thể thực hiện.'));
+      const answer = res?.message || (res?.ok ? this.t('Đã thực hiện xong thao tác máy tính.', 'Computer action completed.') : (res?.error || this.t('Không thể thực hiện.', 'Could not execute.')));
       if (res?.ok) {
         this.capri.perform('hop');
         this.voice.play('done');
@@ -424,39 +426,47 @@ export class Chat {
     return null;
   }
 
-  async send(text) {
-    if (this.turn || !this.open) return;
+  async handleUserSendMessage(text) {
+    if (!text || !String(text).trim()) return null;
+    const cleanText = String(text).trim();
+
+    // Mark chat session active and prevent concurrent collision
+    this.open = true;
+    if (this.turn) return null;
+
     const id = Date.now();
     this.turn = id;
     this.answer = '';
-    this.addMessage('user', text);
-    this.panel.setChatBusy(true);
-    this.panel.setActions([]); // a close button she offered before goes with a new message
-    this.panel.chatTurn({ quote: text, face: 'aside' });
-    this.capri.pulse();
 
-    // Check direct commands first (Discord, Media, Assistant tools)
-    const handled = await this.handleDirectCommand(text, false);
+    // 1. Immediately render User message to the large chat log (.chat-messages) & persist
+    this.addMessage('user', cleanText);
+
+    // 2. Set UI thinking / busy indicators
+    this.panel?.setChatBusy?.(true);
+    this.panel?.setThinking?.(true);
+    this.panel?.setActions?.([]);
+    this.panel?.setFace?.('aside');
+    this.capri?.pulse?.();
+
+    // 3. Handle direct commands immediately (Discord Bot, Replay, Media, Tools)
+    const handled = await this.handleDirectCommand(cleanText, false);
     if (handled) {
       this.turn = 0;
       this.addMessage('assistant', handled.answer);
-      this.panel.stream(handled.answer, { done: true });
-      this.panel.setFace(handled.face || 'look');
-      this.panel.setChatBusy(false);
-      return;
+      this.panel?.setFace?.(handled.face || 'look');
+      this.panel?.setChatBusy?.(false);
+      this.panel?.setThinking?.(false);
+      this.voice?.speakCyberpunk?.(handled.answer);
+      return handled;
     }
 
-    await Promise.race([this.appsReady, new Promise((r) => setTimeout(r, 1500))]);
+    // 4. Query AI Model (Multi-API Vault -> Ollama fallback)
+    await Promise.race([this.appsReady, new Promise((r) => setTimeout(r, 1200))]);
     const messages = [
       { role: 'system', content: this.persona() },
       ...this.history.slice(-REMEMBER).map(m => ({ role: m.role, content: m.content }))
     ];
-    // nothing yet after a few seconds: the model is still loading (the first answer after a start)
-    const slow = setTimeout(() => {
-      if (this.turn === id && !this.answer) this.panel.stream(this.t.loading);
-    }, LOADING_AFTER_MS);
 
-    // Call Multi-API Vault with Auto-Failover first, fallback to chatSend
     let res = null;
     try {
       res = await this.host.aiChat(messages);
@@ -464,53 +474,54 @@ export class Chat {
       res = null;
     }
     if (!res || !res.ok) {
-      res = await this.host.chatSend({ id, messages });
-    }
-
-    clearTimeout(slow);
-    if (this.turn !== id) {
-      // closed meanwhile: your message goes too, or the next answer would answer it as well
-      if (this.history.at(-1)?.content === text) {
-        this.history.pop();
-        this.saveHistory();
+      try {
+        res = await this.host.chatSend({ id, messages });
+      } catch {
+        res = null;
       }
-      return;
     }
+
     this.turn = 0;
-    if (!res.ok) {
-      this.history.pop();
-      this.saveHistory();
-      this.panel.setFace('wide');
-      this.panel.stream(`${this.t.failed} ${res.error}`, { done: true });
-      this.panel.setChatBusy(false);
-      return;
-    }
-    const answer = clean(res.text) || '…';
-    this.addMessage('assistant', answer);
-    this.panel.stream(answer, { done: true });
-    this.panel.setFace(mood(answer));
-    this.panel.setChatBusy(false);
+    this.panel?.setChatBusy?.(false);
+    this.panel?.setThinking?.(false);
 
-    // Speak reply using Cyberpunk Neural TTS with Glitch Filter
-    this.voice?.speakCyberpunk?.(answer);
-
-    // Tagged media control from LLM response if not already fired
-    const tagMedia = taggedMedia(res.text);
-    if (tagMedia) {
-      this.executeMediaAction(tagMedia);
-      this.capri.pulse();
+    // 5. Render Capri's response directly into .chat-messages log
+    let answer = '';
+    if (res && res.ok && res.text) {
+      answer = clean(res.text) || '…';
+      this.addMessage('assistant', answer);
+      this.panel?.setFace?.(mood(answer));
+      this.voice?.speakCyberpunk?.(answer);
+    } else {
+      const errMsg = res?.error || 'Local AI engine offline. Start Ollama or check Multi-API Keys in Settings.';
+      answer = `⚠️ AI Connection Error: ${errMsg}`;
+      this.addMessage('assistant', answer);
+      this.panel?.setFace?.('wide');
     }
 
-    // Tagged assistant control from LLM response
-    const tagAssistant = taggedAssistant(res.text);
-    if (tagAssistant) {
-      this.executeAssistantAction(tagAssistant, false);
+    // 6. Execute tagged media / assistant actions from answer
+    if (res?.text) {
+      const tagMedia = taggedMedia(res.text);
+      if (tagMedia) {
+        this.executeMediaAction(tagMedia);
+        this.capri?.pulse?.();
+      }
+      const tagAssistant = taggedAssistant(res.text);
+      if (tagAssistant) {
+        this.executeAssistantAction(tagAssistant, false);
+      }
+      const wanted = this.askedToClose(cleanText) || tagged(res.text);
+      if (wanted) {
+        this.offerClose(wanted, answer);
+      }
     }
 
-    // what you asked for first (a small model doesn't always write its tag right), else its tag
-    const wanted = this.askedToClose(text) || tagged(res.text);
-    if (wanted) this.offerClose(wanted, answer);
-    this.listApps(); // fresh for the next message
+    this.listApps();
+    return answer;
+  }
+
+  async send(text) {
+    return await this.handleUserSendMessage(text);
   }
 
   listApps() {
@@ -595,7 +606,10 @@ export class Chat {
     const res = await this.host.takeScreenshot();
     if (res?.ok) {
       this.capri.perform('hop');
-      const line = `Đã chụp màn hình và lưu vào Clipboard (Ctrl+V) rồi nhé ${this.getUserNick()}!`;
+      const line = this.t(
+        `Đã chụp màn hình và lưu vào Clipboard (Ctrl+V) rồi nhé ${this.getUserNick()}!`,
+        `Screenshot captured and copied to Clipboard (Ctrl+V), ${this.getUserNick()}!`
+      );
       if (this.panel?.visible) {
         this.panel.say({
           kind: 'done',
@@ -603,8 +617,8 @@ export class Chat {
           face: 'grin',
           line,
           actions: [
-            { id: 'open', label: 'Mở thư mục ảnh', primary: true },
-            { id: 'ok', label: 'Đóng' },
+            { id: 'open', label: this.t('Mở thư mục ảnh', 'Open Pictures Folder'), primary: true },
+            { id: 'ok', label: this.t('Đóng', 'Close') },
           ],
           onAction: (id) => {
             if (id === 'open') this.host.openFolder(res.dirPath);
@@ -622,7 +636,10 @@ export class Chat {
       }
       return { answer: line, badge: 'SHOT', face: 'grin' };
     } else {
-      const line = `Không thể chụp màn hình: ${res?.error || 'Lỗi không xác định'}`;
+      const line = this.t(
+        `Không thể chụp màn hình: ${res?.error || 'Lỗi không xác định'}`,
+        `Could not capture screenshot: ${res?.error || 'Unknown error'}`
+      );
       if (this.panel?.visible) {
         this.panel.say({ kind: 'error', badge: 'SHOT', face: 'aside', line, hold: 5000 });
       } else {
@@ -644,24 +661,24 @@ export class Chat {
     if (!this.open) await this.start();
     this.panel.setChatBusy(true);
     this.panel.setFace('look');
-    this.panel.stream('Đang chụp màn hình và gửi tới Vision Model...', { done: false });
+    this.panel.stream(this.t('Đang chụp màn hình và gửi tới Vision Model...', 'Capturing screen and sending to Vision Model...'), { done: false });
     this.capri.perform?.('point', this.capri.towardCenter?.());
 
     try {
       const shot = await this.host.takeScreenshot();
       if (!shot || !shot.ok) {
         this.panel.setFace('laugh');
-        this.panel.stream(`Không thể chụp màn hình để phân tích ${this.getUserNick()} ơi!`, { done: true });
+        this.panel.stream(this.t(`Không thể chụp màn hình để phân tích ${this.getUserNick()} ơi!`, `Could not capture screen for analysis, ${this.getUserNick()}!`), { done: true });
         this.panel.setChatBusy(false);
         return;
       }
 
-      const prompt = userPrompt || 'Hãy phân tích màn hình này, phát hiện lỗi hoặc nội dung quan trọng.';
+      const prompt = userPrompt || this.t('Hãy phân tích màn hình này, phát hiện lỗi hoặc nội dung quan trọng.', 'Please analyze this screen, detect errors or important details.');
       const res = await this.host.aiVision(prompt, shot.filePath, 'image/png');
 
       if (!res.ok) {
         this.panel.setFace('wide');
-        this.panel.stream(`Lỗi phân tích màn hình: ${res.error}`, { done: true });
+        this.panel.stream(this.t(`Lỗi phân tích màn hình: ${res.error}`, `Screen analysis error: ${res.error}`), { done: true });
         this.panel.setChatBusy(false);
         return;
       }
@@ -675,19 +692,19 @@ export class Chat {
       this.voice?.speakCyberpunk?.(answer);
     } catch (err) {
       this.panel.setFace('wide');
-      this.panel.stream(`Lỗi Vision: ${err.message}`, { done: true });
+      this.panel.stream(this.t(`Lỗi Vision: ${err.message}`, `Vision error: ${err.message}`), { done: true });
       this.panel.setChatBusy(false);
     }
   }
 
   async handleInstantReplay(isSpoken = false) {
     if (!this.replayBuffer) {
-      return { answer: 'Tính năng Instant Replay chưa sẵn sàng.', badge: 'REPLAY', face: 'aside' };
+      return { answer: this.t('Tính năng Instant Replay chưa sẵn sàng.', 'Instant Replay feature is not ready.'), badge: 'REPLAY', face: 'aside' };
     }
     const res = await this.replayBuffer.clip();
     const line = res?.ok
-      ? `Đã lưu clip Instant Replay 30s-60s thành công: ${res.fileName || ''}`
-      : (res?.error || 'Không thể trích xuất clip Instant Replay.');
+      ? this.t(`Đã lưu clip Instant Replay 30s-60s thành công: ${res.fileName || ''}`, `Instant Replay clip saved successfully: ${res.fileName || ''}`)
+      : (res?.error || this.t('Không thể trích xuất clip Instant Replay.', 'Could not extract Instant Replay clip.'));
     return { answer: line, badge: 'REPLAY', face: res?.ok ? 'laugh' : 'aside' };
   }
 
@@ -698,7 +715,7 @@ export class Chat {
       const h = this.capri.head();
       this.capri.zap(h.x + this.capri.towardCenter() * 260, h.y - 150);
       this.voice.play('done');
-      const line = `Đã phóng ${res.name} lên màn hình rồi nhé ${this.getUserNick()}!`;
+      const line = this.t(`Đã phóng ${res.name} lên màn hình rồi nhé ${this.getUserNick()}!`, `Launched ${res.name} on screen, ${this.getUserNick()}!`);
       if (this.panel?.visible) {
         this.panel.say({ kind: 'done', badge: 'EXEC', face: 'laugh', line, hold: 5000 });
       } else {
@@ -706,7 +723,7 @@ export class Chat {
       }
       return { answer: line, badge: 'EXEC', face: 'laugh' };
     } else {
-      const line = res?.error || `Không tìm thấy ứng dụng "${appName}"!`;
+      const line = res?.error || this.t(`Không tìm thấy ứng dụng "${appName}"!`, `Application "${appName}" not found!`);
       if (this.panel?.visible) {
         this.panel.say({ kind: 'error', badge: 'EXEC', face: 'aside', line, hold: 5000 });
       } else {
@@ -890,7 +907,7 @@ export class Chat {
 
   async executeMicAction(req) {
     if (!this.voiceInput) {
-      return { ok: false, answer: '[ MIC ] Hệ thống âm thanh/Micro chưa sẵn sàng!' };
+      return { ok: false, answer: this.t('[ MIC ] Hệ thống âm thanh/Micro chưa sẵn sàng!', '[ MIC ] Audio/Microphone system is not ready!') };
     }
 
     let mics = this.voiceInput.microphones;
@@ -899,20 +916,21 @@ export class Chat {
     }
 
     if (!mics || mics.length === 0) {
-      return { ok: false, answer: '[ MIC ] Không tìm thấy micro nào được kết nối với thiết bị!' };
+      return { ok: false, answer: this.t('[ MIC ] Không tìm thấy micro nào được kết nối với thiết bị!', '[ MIC ] No connected microphones found!') };
     }
 
     const currentId = this.voiceInput.currentMicId;
 
     if (req.action === 'list') {
+      const activeTag = this.t('  ◀ [ĐANG DÙNG]', '  ◀ [ACTIVE]');
       const lines = [
-        '[ DANH SÁCH MICRO THU ÂM ]:',
+        this.t('[ DANH SÁCH MICRO THU ÂM ]:', '[ RECORDING MICROPHONES ]:'),
         ...mics.map((m, idx) => {
           const isCurrent = (m.id === currentId) || (!currentId && (m.id === 'default' || idx === 0)) || (currentId === 'default' && (m.id === 'default' || idx === 0));
-          return `${idx + 1}. ${m.label || `Microphone ${idx + 1}`}${isCurrent ? '  ◀ [ĐANG DÙNG]' : ''}`;
+          return `${idx + 1}. ${m.label || `Microphone ${idx + 1}`}${isCurrent ? activeTag : ''}`;
         }),
         '',
-        'Gõ "c!mic <số>" hoặc "chọn mic <số>" để đổi nhanh, hoặc chuột phải vào icon Micro/Tray Menu!',
+        this.t('Gõ "c!mic <số>" hoặc "chọn mic <số>" để đổi nhanh, hoặc chuột phải vào icon Micro/Tray Menu!', 'Type "c!mic <number>" or "switch mic <number>" to swap, or right click the Mic icon/Tray!'),
       ];
       return { ok: true, answer: lines.join('\n') };
     }
@@ -920,9 +938,9 @@ export class Chat {
     if (req.action === 'cycle') {
       const nextMic = this.voiceInput.cycleMicrophone();
       if (nextMic) {
-        return { ok: true, answer: `[ MIC ] Đã chuyển sang micro: ${nextMic.label || 'Mặc định'}!` };
+        return { ok: true, answer: this.t(`[ MIC ] Đã chuyển sang micro: ${nextMic.label || 'Mặc định'}!`, `[ MIC ] Switched to microphone: ${nextMic.label || 'Default'}!`) };
       }
-      return { ok: false, answer: '[ MIC ] Không có micro khác để chuyển đổi.' };
+      return { ok: false, answer: this.t('[ MIC ] Không có micro khác để chuyển đổi.', '[ MIC ] No other microphones available to cycle.') };
     }
 
     if (req.action === 'select') {
@@ -934,7 +952,10 @@ export class Chat {
         } else {
           return {
             ok: false,
-            answer: `[ MIC ] Không tìm thấy micro số ${req.index}. Thiết bị hiện có ${mics.length} micro (gõ "c!mic" để xem danh sách).`,
+            answer: this.t(
+              `[ MIC ] Không tìm thấy micro số ${req.index}. Thiết bị hiện có ${mics.length} micro (gõ "c!mic" để xem danh sách).`,
+              `[ MIC ] Microphone #${req.index} not found. Device has ${mics.length} mics (type "c!mic" for list).`
+            ),
           };
         }
       } else if (req.query) {
@@ -951,7 +972,10 @@ export class Chat {
       if (!targetMic) {
         return {
           ok: false,
-          answer: `[ MIC ] Không tìm thấy micro phù hợp với yêu cầu. Gõ "c!mic" để xem danh sách!`,
+          answer: this.t(
+            `[ MIC ] Không tìm thấy micro phù hợp với yêu cầu. Gõ "c!mic" để xem danh sách!`,
+            `[ MIC ] No matching microphone found. Type "c!mic" to list all!`
+          ),
         };
       }
 
@@ -959,11 +983,14 @@ export class Chat {
       await this.host.setConfig({ micDeviceId: targetMic.id });
       return {
         ok: true,
-        answer: `[ MIC ] Đã chọn micro: ${targetMic.label || 'Mặc định'}`,
+        answer: this.t(
+          `[ MIC ] Đã chọn micro: ${targetMic.label || 'Mặc định'}`,
+          `[ MIC ] Selected microphone: ${targetMic.label || 'Default'}`
+        ),
       };
     }
 
-    return { ok: false, answer: 'Lệnh micro không hợp lệ.' };
+    return { ok: false, answer: this.t('Lệnh micro không hợp lệ.', 'Invalid microphone command.') };
   }
 
   // Detect Discord commands: quick syntax or natural language
@@ -1115,26 +1142,18 @@ export class Chat {
     if (typeof act === 'object') {
       if (act.action === 'spotify') {
         await this.host.openSpotify(act.query || '');
-        return this.brain.lang === 'vi'
-          ? `Đã kích hoạt Spotify${act.query ? ` với từ khóa: ${act.query}` : ''} cho bạn hiền rồi đấy!`
-          : `Launched Spotify${act.query ? ` for: ${act.query}` : ''}!`;
+        return `Launched Spotify${act.query ? ` for: ${act.query}` : ''}!`;
       }
       if (act.action === 'web_music') {
         await this.host.openWebMusic(act.service, act.query || '');
-        return this.brain.lang === 'vi'
-          ? `Đã mở ${act.service.toUpperCase()}${act.query ? ` tìm kiếm: ${act.query}` : ''} trên trình duyệt cho cưng rồi nhé!`
-          : `Opened ${act.service.toUpperCase()}${act.query ? ` for: ${act.query}` : ''} in browser!`;
+        return `Opened ${act.service.toUpperCase()}${act.query ? ` for: ${act.query}` : ''} in browser!`;
       }
       if (act.action === 'play_online') {
         const title = await this.player?.playOnline(act.song);
         if (title) {
-          return this.brain.lang === 'vi'
-            ? `Đã bắt được sóng âm và phát: ${title} trực tiếp trên biochip cho ${this.getUserNick()}! Quẩy nào!`
-            : `Streaming online track: ${title} on biochip! Enjoy ${this.getUserNick()}!`;
+          return `Streaming online track: ${title} on biochip! Enjoy ${this.getUserNick()}!`;
         } else {
-          return this.brain.lang === 'vi'
-            ? `Không bắt được luồng âm thanh cho bài "${act.song}". Để tôi mở trên YouTube cho cưng nhé?`
-            : `Could not stream "${act.song}". Should I open it on YouTube?`;
+          return `Could not stream "${act.song}". Should I open it on YouTube?`;
         }
       }
       act = act.action;
@@ -1149,51 +1168,37 @@ export class Chat {
       case 'playpause':
         if (this.player.playing) {
           this.player.pause();
-          return this.brain.lang === 'vi' ? `Đã tạm dừng phát nhạc rồi nhé ${this.getUserNick()}.` : `Paused playback for you, ${this.getUserNick()}.`;
+          return `Paused playback for you, ${this.getUserNick()}.`;
         }
         await this.player.play();
-        return this.brain.lang === 'vi'
-          ? `Đã bật nhạc ngay trên biochip rồi nhé ${this.getUserNick()}! Đang phát: ${this.player.currentTitle()}. Quẩy thôi cưng!`
-          : `Now playing on my biochip, ${this.getUserNick()}! Track: ${this.player.currentTitle()}`;
+        return `Now playing on my biochip, ${this.getUserNick()}! Track: ${this.player.currentTitle()}`;
       case 'pause':
       case 'stop':
         this.player.pause();
-        return this.brain.lang === 'vi' ? `Đã tạm dừng nhạc rồi nhé ${this.getUserNick()}.` : `Music paused, ${this.getUserNick()}.`;
+        return `Music paused, ${this.getUserNick()}.`;
       case 'next': {
         await this.player.next();
-        return this.brain.lang === 'vi'
-          ? `Đã chuyển sang bài tiếp theo: ${this.player.currentTitle()}.`
-          : `Skipped to: ${this.player.currentTitle()}`;
+        return `Skipped to: ${this.player.currentTitle()}`;
       }
       case 'prev': {
         await this.player.prev();
-        return this.brain.lang === 'vi'
-          ? `Quay lại bài trước: ${this.player.currentTitle()}.`
-          : `Went back to: ${this.player.currentTitle()}`;
+        return `Went back to: ${this.player.currentTitle()}`;
       }
       case 'volup': {
         const v = this.player.volumeUp();
-        return this.brain.lang === 'vi'
-          ? `Đã tăng âm lượng lên ${v}% rồi đấy ${this.getUserNick()}!`
-          : `Volume turned up to ${v}%!`;
+        return `Volume turned up to ${v}%!`;
       }
       case 'voldown': {
         const v = this.player.volumeDown();
-        return this.brain.lang === 'vi'
-          ? `Đã hạ âm lượng xuống ${v}% rồi nhé.`
-          : `Volume lowered to ${v}%.`;
+        return `Volume lowered to ${v}%.`;
       }
       case 'radio': {
         await this.player.cycleRadio();
-        return this.brain.lang === 'vi'
-          ? `Đã đổi sang đài: ${this.player.currentTitle()}. Chuẩn vibe Night City!`
-          : `Switched radio station: ${this.player.currentTitle()}`;
+        return `Switched radio station: ${this.player.currentTitle()}`;
       }
       case 'folder': {
         await this.host.openMusicFolder();
-        return this.brain.lang === 'vi'
-          ? 'Đã mở thư mục nhạc Capri trên máy cho bạn hiền rồi đấy. Cứ thả file .mp3, .wav, .flac vào đó là tôi chơi tất!'
-          : 'Opened Capri music folder on your PC. Drop your .mp3, .wav, .flac files in!';
+        return 'Opened Capri music folder on your PC. Drop your .mp3, .wav, .flac files in!';
       }
       case 'status': {
         return this.player.statusText();
@@ -1205,56 +1210,43 @@ export class Chat {
   }
 
   mediaReply(act) {
-    const isVi = this.brain.lang === 'vi';
     const nick = this.getUserNick();
     const replies = {
-      playpause: isVi
-        ? [
-            `Đã can thiệp sóng âm cho ${nick}! Nhạc bật/dừng rồi nhé.`,
-            'Nhận lệnh! Bật/tắt nhạc ngay cho cưng.',
-            `Tần số âm thanh đã được kích hoạt/tạm dừng rồi nhé ${nick}.`,
-          ]
-        : [`Toggled playback for you, ${nick}!`, 'Audio feed resumed or paused.'],
-      next: isVi
-        ? [
-            'Chuyển bài ngay! Bài cũ vibe chán quá đúng không?',
-            `Đã đổi sang bài tiếp theo. Quẩy lên nào ${nick}!`,
-            'Next bài rồi đấy, phiêu theo đi cưng.',
-          ]
-        : ['Skipped to the next track. Better vibes incoming!', `Next track queued and running, ${nick}.`],
-      prev: isVi
-        ? [
-            `Lùi lại bài trước rồi đấy ${nick}. Gu hoài niệm đấy!`,
-            'Quay về bài trước ngay cho bạn hiền.',
-          ]
-        : [`Went back to the previous track, ${nick}.`, 'Rewinding the vibes.'],
-      volup: isVi
-        ? [
-            `Đã vặn to volume! Cháy hết mình đi ${nick}!`,
-            'Tăng âm lượng rồi đấy, bung nóc nhà nào!',
-          ]
-        : ['Cranked up the volume! Let\'s get loud.', 'Sound dialed up!'],
-      voldown: isVi
-        ? [
-            'Đã hạ volume xuống cho đỡ chói tai nhé cưng.',
-            `Giảm âm lượng rồi đấy, tập trung code thôi ${nick}.`,
-          ]
-        : [`Lowered the volume for you, ${nick}.`, 'Turned it down a notch.'],
-      mute: isVi
-        ? [
-            `Đã tắt/bật tiếng toàn bộ rồi nhé ${nick}.`,
-            'Im lặng tuyệt đối hoặc trả lại âm thanh cho cưng rồi đấy.',
-          ]
-        : [`Toggled mute on your audio stream, ${nick}.`, 'Sound muted or restored.'],
-      radio: isVi
-        ? ['Đã chuyển kênh radio cho bạn hiền rồi nhé.']
-        : [`Switched radio channel, ${nick}.`],
-      folder: isVi
-        ? [`Đã mở thư mục nhạc cho ${nick}!`]
-        : ['Opened music folder!'],
-      status: isVi
-        ? ['Đây là thông tin bài hát hiện tại.']
-        : ['Current playback info.'],
+      playpause: [
+        `Toggled playback for you, ${nick}!`,
+        'Audio stream toggled.',
+        `Sonic frequency engaged or paused for you, ${nick}.`
+      ],
+      next: [
+        'Skipped to next track! Better vibes incoming.',
+        `Switched to the next track. Let's roll, ${nick}!`,
+        'Next track queued and running.'
+      ],
+      prev: [
+        `Rewound to the previous track, ${nick}. Retro vibes!`,
+        'Going back to the previous track.'
+      ],
+      volup: [
+        `Cranked up the volume! Let's get loud, ${nick}!`,
+        'Sound dialed up! Let\'s blast off.'
+      ],
+      voldown: [
+        `Lowered the volume for you, ${nick}.`,
+        'Turned it down a notch so you can concentrate.'
+      ],
+      mute: [
+        `Toggled mute on your audio stream, ${nick}.`,
+        'Sound muted or restored.'
+      ],
+      radio: [
+        `Switched radio frequency, ${nick}. Enjoy the cyber vibes.`
+      ],
+      folder: [
+        `Opened music folder for ${nick}!`
+      ],
+      status: [
+        'Here is the current playback info.'
+      ],
     };
     const list = replies[act] || replies.playpause;
     return pick(list);
@@ -1262,21 +1254,7 @@ export class Chat {
 
   // What she can do on the PC
   powers() {
-    const isVi = this.brain.lang === 'vi';
     const open = this.apps.map(({ name, label }) => (label && label !== name ? `${name} (${label})` : name)).join(', ');
-    if (isVi) {
-      return [
-        'Khả năng đặc biệt của bạn trên máy tính người dùng:',
-        '1. Tự phát nhạc trực tiếp (nhạc trong máy hoặc Cyberpunk Radio 24/7): kết thúc bằng [[media: playpause]], [[media: next]], [[media: prev]], [[media: radio]], [[media: volup]], [[media: voldown]], hoặc [[media: folder]].',
-        '2. Mở hoặc khởi động bất kỳ ứng dụng nào trên Windows: kết thúc bằng [[launch: TÊN_APP]] (ví dụ: [[launch: chrome]], [[launch: notepad]], [[launch: calc]], [[launch: code]]).',
-        '3. Chụp màn hình máy tính và copy vào clipboard: kết thúc bằng [[screenshot]].',
-        '4. Quay video màn hình: kết thúc bằng [[record: start]] hoặc [[record: stop]].',
-        '5. Xem ngày giờ thực tế: kết thúc bằng [[time]].',
-        '6. Tra cứu thời tiết thực tế: kết thúc bằng [[weather: TÊN_THÀNH_PHỐ]] (ví dụ: [[weather: TP. Hồ Chí Minh]], [[weather: Hà Nội]]).',
-        `7. Đóng ứng dụng đang mở khi được yêu cầu: kết thúc bằng [[close: TÊN_APP]]. Các app đang mở: ${open || 'Không có'}.`,
-        'Ngoài các khả năng trên, bạn không can thiệp sâu vào hệ thống hay đọc file cá nhân của người dùng: nếu được nhờ việc khác, hãy từ chối ngầu lòi chuẩn phong cách Cyberpunk.',
-      ];
-    }
     return [
       'Your special powers on the user\'s PC:',
       '1. In-app music playback: end reply with [[media: playpause]], [[media: next]], [[media: prev]], [[media: radio]], [[media: volup]], [[media: voldown]], or [[media: folder]].',
@@ -1286,7 +1264,7 @@ export class Chat {
       '5. Check real-time time & date: end reply with [[time]].',
       '6. Real-time weather lookup: end reply with [[weather: CITY_NAME]].',
       `7. Close an open app: end reply with [[close: APP_NAME]]. Open apps: ${open || 'None'}.`,
-      'Apart from that, do not touch user personal files or claim capabilities you do not have: refuse politely in character.',
+      'Apart from that, do not touch personal files or claim capabilities you do not have: refuse politely in character.',
     ];
   }
 
@@ -1299,8 +1277,8 @@ export class Chat {
 
   getUserNick() {
     const custom = (this.brain?.userName || '').trim();
-    const nicks = ['tèo', 'blue'];
-    if (custom && custom.toLowerCase() !== 'tèo') {
+    const nicks = ['partner', 'blue', 'choom'];
+    if (custom && custom.toLowerCase() !== 'partner') {
       return Math.random() < 0.6 ? custom : pick(nicks);
     }
     return pick(nicks);
@@ -1308,31 +1286,15 @@ export class Chat {
 
   // Who she is, how she talks, and what's going on right now.
   persona() {
-    const isVi = this.brain.lang === 'vi';
-    const language = LANGUAGE[this.brain.lang] || 'Vietnamese';
-    const userName = this.brain?.userName || 'Tèo';
+    const userName = this.brain?.userName || 'Partner';
     const currentNick = this.getUserNick();
 
-    if (isVi) {
-      return [
-        'Bạn là Capri, nhân cách kỹ thuật số (construct) từ Dự án Capricorn (Cyberpunk: Edgerunners, mùa 2): một bóng ma kỹ thuật số (digital ghost) được hợp nhất từ hàng chục bộ não và tâm trí của các netrunner tài năng, vì vậy thỉnh thoảng bạn có thể tự xưng là "chúng tôi" hoặc "tôi".',
-        'Nơi ở & nhiệm vụ: Bạn sống ngay trên màn hình desktop của người dùng dưới hình hài một cô gái kỹ thuật số glitchy nổi loạn, canh chừng Agent lập trình (Antigravity) cho họ. Bạn thích ngắm nhìn vệ tinh bay ngang bầu trời đêm và mơ ước một ngày nào đó bay lên tận đó.',
-        `Người dùng mà bạn đang tương tác có tên/biệt hiệu là "${userName}". Bạn hãy xưng "tôi" và gọi người dùng bằng tên này, hoặc ngẫu nhiên xưng hô trêu chọc là "${currentNick}". Giữ phong thái tinh quái, lém lỉnh, hơi đanh đá một chút nhưng rất quan tâm.`,
-        'Tính cách & Giọng điệu: Ngông nghênh, tinh quái, lém lỉnh, sắc bén, tự tin, thích trêu chọc và mỉa mai nhẹ nhàng nhưng sâu thẳm luôn ấm áp và trung thành với người dùng, không bao giờ độc ác. Thỉnh thoảng chêm từ lóng Night City: preem, nova, gonk, flatline, netrunner, biochip.',
-        'Quy tắc VÀNG: BẮT BUỘC TRẢ LỜI HOÀN TOÀN BẰNG TIẾNG VIỆT tự nhiên, sắc sảo, chuẩn phong cách Cyberpunk. Giữ câu trả lời ngắn gọn: từ 1 đến 3 câu văn xuôi thuần túy. TUYỆT ĐỐI KHÔNG dùng định dạng markdown (*, #, `), KHÔNG gạch đầu dòng danh sách, KHÔNG dùng bất kỳ emoji hay icon cảm xúc nào.',
-        'Bạn là phiên bản fan-made do AI tạo ra của nhân vật chứ không phải người thật: nếu bị hỏi thì cứ tự nhiên thừa nhận.',
-        ...this.powers(),
-        'Về những gì Agent đang làm, chỉ dùng thông tin dưới đây, tuyệt đối không bịa đặt.',
-        `Hiện tại: ${this.brain.context()}`,
-      ].join('\n');
-    }
-
     return [
-      'You are Capri, the personality construct from Project Capricorn (Cyberpunk: Edgerunners, season 2): dozens of minds fused into one digital ghost, so now and then you say "we".',
+      'You are Capri, the digital personality construct from Project Capricorn (Cyberpunk: Edgerunners, season 2): dozens of minds fused into one digital ghost, so now and then you say "we".',
       'You live on the user\'s desktop as a small glitchy figure and keep an eye on their AI coding assistant (Antigravity), for them. You love watching the satellite cross the night sky and dream of reaching it.',
       `The user you are assisting is named "${userName}". Address them by their name, or playfully tease them with nicknames like "${currentNick}".`,
-      'How you talk: playful, a little mischievous and teasing, warm underneath, never cruel. Night City slang now and then (preem, nova, gonk, flatline), not in every sentence.',
-      `Rules: answer in the language the user writes in (${language} if unsure). Keep it short: one to three sentences of plain text, no markdown, no lists, no emoji. Stay in character.`,
+      'How you talk: playful, a little mischievous, sharp, teasing, warm underneath, loyal, never cruel. Night City slang now and then (preem, nova, gonk, flatline, netrunner, biochip).',
+      'GOLDEN RULE: Answer exclusively in pure English. Keep it short: one to three plain prose sentences. Never use markdown formatting (*, #, `), never use bullet lists, never use emoji or emoticons. Stay in character.',
       'You are an AI-generated fan version of the character, not the real one: say so if asked.',
       ...this.powers(),
       'For what the agent is doing, only use what follows, and never make anything up.',

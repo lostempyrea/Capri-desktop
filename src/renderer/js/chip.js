@@ -38,6 +38,16 @@ class Small {
   }
 
   contains(x, y, pad = 8) {
+    if (this.miniState === 'vanish' || this.canvas?.hidden) return false;
+    if (this.containsQuickInput && this.containsQuickInput(x, y)) return true;
+    if (this.canvas) {
+      const rect = this.canvas.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        if (x >= rect.left - pad && x <= rect.right + pad && y >= rect.top - pad && y <= rect.bottom + pad) {
+          return true;
+        }
+      }
+    }
     return x >= this.x - pad && x <= this.x + this.w + pad && y >= this.y - pad && y <= this.y + this.h + pad;
   }
 
@@ -169,6 +179,15 @@ export class Chip extends Small {
     this.isQuickInputHovered = false;
     this.isQuickInputFocused = false;
     this.quickInputHideTimer = null;
+
+    // Drag vs Click Tracking on Mini Biochip (Threshold > 8px)
+    this.isMouseDown = false;
+    this.hasDragged = false;
+    this.dragStartX = 0;
+    this.dragStartY = 0;
+    this.dragDownTime = 0;
+    this._pointerBound = false;
+    this.capriRef = null;
   }
 
   bindChat(chat) {
@@ -181,6 +200,67 @@ export class Chip extends Small {
 
   bindPanel(panel) {
     this.panel = panel;
+    this.initPointerInteraction();
+  }
+
+  bindCapri(capri) {
+    this.capriRef = capri;
+    this.initPointerInteraction();
+  }
+
+  initPointerInteraction() {
+    if (this._pointerBound || !this.canvas) return;
+    this._pointerBound = true;
+
+    this.canvas.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      if (e.target?.closest?.('#biochip-quick-input, #biochip-speech, #biochip-voice-pill')) return;
+      this.isMouseDown = true;
+      this.hasDragged = false;
+      this.dragStartX = e.screenX;
+      this.dragStartY = e.screenY;
+      this.dragDownTime = Date.now();
+      window.host?.setInteractive?.(true);
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!this.isMouseDown) return;
+      const dist = Math.hypot(e.screenX - this.dragStartX, e.screenY - this.dragStartY);
+      if (dist > 8) {
+        this.hasDragged = true;
+        if (this.capriRef && typeof this.capriRef.perform === 'function' && !this.capriRef.busy) {
+          try {
+            this.capriRef.perform('dangle');
+          } catch {}
+        }
+      }
+    });
+
+    window.addEventListener('mouseup', (e) => {
+      if (!this.isMouseDown) return;
+      const wasDragged = this.hasDragged;
+      this.isMouseDown = false;
+      this.hasDragged = false;
+
+      if (!wasDragged) {
+        // Distance <= 8px: Open/close large chat panel immediately
+        if (this.panel) {
+          if (this.panel.visible) {
+            this.panel.hide();
+            this.chat?.close?.();
+          } else {
+            if (typeof this.chat?.start === 'function') {
+              this.chat.start();
+            } else if (typeof this.panel.openPanel === 'function') {
+              this.panel.openPanel();
+            } else {
+              this.panel.show();
+            }
+          }
+        }
+        window.dispatchEvent(new CustomEvent('capri:toggle-chat'));
+      }
+    });
   }
 
   initVoicePill() {
@@ -191,10 +271,11 @@ export class Chip extends Small {
     }
   }
 
-  lockQuickInput(placeholder = 'Đang nghe giọng nói...') {
+  lockQuickInput(placeholder = null) {
     if (!this.quickInputField) return;
+    const text = placeholder || 'Listening to voice transmission...';
     this.quickInputField.disabled = true;
-    this.quickInputField.placeholder = placeholder;
+    this.quickInputField.placeholder = text;
     this.quickInputEl?.classList.add('is-recording');
   }
 
@@ -203,13 +284,12 @@ export class Chip extends Small {
     this.quickInputField.disabled = false;
     this.quickInputField.style.pointerEvents = 'auto';
     this.quickInputEl?.classList.remove('is-recording');
-    this.updateI18n(document.documentElement.lang || 'vi');
+    this.updateI18n('en');
   }
 
-  updateI18n(lang = 'vi') {
-    const isEn = (lang === 'en');
+  updateI18n(_lang = 'en') {
     if (this.quickInputField && !this.quickInputField.disabled) {
-      this.quickInputField.placeholder = isEn ? 'Quick prompt Capri...' : 'Hỏi nhanh Capri...';
+      this.quickInputField.placeholder = 'Quick message or command...';
     }
   }
 
@@ -566,19 +646,30 @@ export class Chip extends Small {
     this.face = { x: this.x + this.cx, y: this.y + this.cy };
   }
 
+  teleport(customX = null, customY = null) {
+    const maxX = Math.max(100, window.innerWidth - this.w - 50);
+    const maxY = Math.max(100, window.innerHeight - this.h - 50);
+    const targetX = customX !== null ? customX : Math.floor(50 + Math.random() * (maxX - 50));
+    const targetY = customY !== null ? customY : Math.floor(50 + Math.random() * (maxY - 50));
+
+    this.canvas.classList.add('is-glitching');
+    this.canvas.style.opacity = '0.2';
+    setTimeout(() => {
+      this.moveTo(targetX, targetY);
+      this.face = { x: this.x + this.cx, y: this.y + this.cy };
+      try {
+        localStorage.setItem('capri.chipPosition', JSON.stringify({ x: targetX, y: targetY }));
+      } catch {}
+      this.canvas.style.opacity = '1';
+      this.canvas.classList.remove('is-glitching');
+      this.wake();
+    }, 150);
+  }
+
   center() {
     return { x: this.x + this.cx, y: this.y + this.cy };
   }
 
-  contains(x, y, pad = 16) {
-    if (this.miniState === 'vanish' || this.canvas.hidden) return false;
-    if (this.containsQuickInput(x, y)) return true;
-    const fx = this.x + this.cx;
-    const fy = this.y + this.cy;
-    const inMask = x >= fx - 50 * K - pad && x <= fx + 50 * K + pad && y >= fy - 80 * K - pad && y <= fy + 50 * K + pad;
-    if (inMask) return true;
-    return x >= this.x + 50 && x <= this.x + 190 && y >= this.y + 60 && y <= this.y + 200;
-  }
 
   setMiniState(state) {
     if (this.miniState === state) return;

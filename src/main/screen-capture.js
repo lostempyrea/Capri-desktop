@@ -138,35 +138,28 @@ async function saveScreenRecording(arrayBuffer, mimeType = 'video/webm') {
 
     console.log(`[screen-capture] Converting recording to MP4 via FFmpeg (${buf.length} bytes, mime: ${mimeType})...`);
 
-    const ffmpegArgs = ['-y', '-i', tempPath];
-
-    if (isH264) {
-      ffmpegArgs.push(
-        '-c:v', 'copy',
-        '-c:a', 'aac',
-        '-b:a', '192k',
-        '-movflags', '+faststart',
-        mp4Path
-      );
-    } else {
-      ffmpegArgs.push(
-        '-c:v', 'libx264',
-        '-preset', 'ultrafast',
-        '-crf', '22',
-        '-pix_fmt', 'yuv420p',
-        '-c:a', 'aac',
-        '-b:a', '192k',
-        '-movflags', '+faststart',
-        mp4Path
-      );
-    }
+    const ffmpegArgs = [
+      '-y',
+      '-fflags', '+genpts+igndts',
+      '-i', tempPath,
+      '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2,fps=30',
+      '-c:v', 'libx264',
+      '-preset', 'ultrafast',
+      '-crf', '22',
+      '-pix_fmt', 'yuv420p',
+      '-c:a', 'aac',
+      '-b:a', '192k',
+      '-movflags', '+faststart',
+      '-threads', '2',
+      mp4Path
+    ];
 
     try {
       await runFfmpeg(ffmpegArgs);
     } catch (ffErr) {
       console.warn('[screen-capture] FFmpeg transcode failed, attempting fallback remux:', ffErr.message);
       try {
-        await runFfmpeg(['-y', '-i', tempPath, '-movflags', '+faststart', mp4Path]);
+        await runFfmpeg(['-y', '-fflags', '+genpts+igndts', '-i', tempPath, '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-threads', '2', mp4Path]);
       } catch {
         fs.copyFileSync(tempPath, mp4Path);
       }
@@ -193,38 +186,44 @@ async function saveScreenRecording(arrayBuffer, mimeType = 'video/webm') {
 }
 
 /**
- * Save Instant Replay buffer from rolling ring-buffer in RAM
+ * Save Instant Replay buffer from rolling segmented buffers or ring-buffer
+ * Accepts single ArrayBuffer or array of segment ArrayBuffers, concatenates via FFmpeg into valid H.264 MP4
  */
-async function saveInstantReplay(arrayBuffer, mimeType = 'video/webm') {
+async function saveInstantReplay(inputData, mimeType = 'video/webm') {
   try {
     const dir = getReplaysDir();
     const timeTag = timestamp();
-    const isH264 = mimeType.includes('mp4') || mimeType.includes('avc1') || mimeType.includes('h264');
-    const tempExt = isH264 ? 'mp4' : 'webm';
-    const tempPath = path.join(dir, `_clip_temp_${timeTag}.${tempExt}`);
     const clipFileName = `Capri_Replay_${timeTag}.mp4`;
     const clipPath = path.join(dir, clipFileName);
 
-    const buf = Buffer.isBuffer(arrayBuffer) ? arrayBuffer : Buffer.from(arrayBuffer);
-    if (!buf || buf.length < 500) {
-      return { ok: false, error: 'Dữ liệu bộ đệm Instant Replay quá nhỏ hoặc trống.' };
+    // Support both an array of segment buffers and a single buffer
+    const rawSegments = Array.isArray(inputData) ? inputData : [inputData];
+    const segmentBuffers = rawSegments
+      .map((s) => (Buffer.isBuffer(s) ? s : Buffer.from(s || [])))
+      .filter((b) => b && b.length > 500);
+
+    if (segmentBuffers.length === 0) {
+      return { ok: false, error: 'Instant Replay buffer data is empty or invalid.' };
     }
 
-    fs.writeFileSync(tempPath, buf);
-    console.log(`[instant-replay] Muxing ring buffer (${buf.length} bytes) to MP4: ${clipPath}...`);
+    const tempFiles = [];
+    const concatListPath = path.join(dir, `_concat_${timeTag}.txt`);
 
-    const ffmpegArgs = ['-y', '-i', tempPath];
+    segmentBuffers.forEach((buf, idx) => {
+      const segPath = path.join(dir, `_seg_${timeTag}_${idx}.webm`);
+      fs.writeFileSync(segPath, buf);
+      tempFiles.push(segPath);
+    });
 
-    if (isH264) {
-      ffmpegArgs.push(
-        '-c:v', 'copy',
-        '-c:a', 'aac',
-        '-b:a', '192k',
-        '-movflags', '+faststart',
-        clipPath
-      );
-    } else {
-      ffmpegArgs.push(
+    console.log(`[instant-replay] Processing ${tempFiles.length} segment(s) to MP4: ${clipPath}...`);
+
+    let ffmpegArgs = [];
+    if (tempFiles.length === 1) {
+      ffmpegArgs = [
+        '-y',
+        '-fflags', '+genpts+igndts',
+        '-i', tempFiles[0],
+        '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2,fps=30',
         '-c:v', 'libx264',
         '-preset', 'ultrafast',
         '-crf', '23',
@@ -232,27 +231,52 @@ async function saveInstantReplay(arrayBuffer, mimeType = 'video/webm') {
         '-c:a', 'aac',
         '-b:a', '192k',
         '-movflags', '+faststart',
+        '-threads', '2',
         clipPath
-      );
+      ];
+    } else {
+      const concatContent = tempFiles.map((f) => `file '${f.replace(/'/g, "'\\''")}'`).join('\n');
+      fs.writeFileSync(concatListPath, concatContent);
+
+      ffmpegArgs = [
+        '-y',
+        '-f', 'concat',
+        '-safe', '0',
+        '-i', concatListPath,
+        '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2,fps=30',
+        '-c:v', 'libx264',
+        '-preset', 'ultrafast',
+        '-crf', '23',
+        '-pix_fmt', 'yuv420p',
+        '-c:a', 'aac',
+        '-b:a', '192k',
+        '-movflags', '+faststart',
+        '-threads', '2',
+        clipPath
+      ];
     }
 
     try {
       await runFfmpeg(ffmpegArgs);
     } catch (ffErr) {
-      console.warn('[instant-replay] Fast remux failed, fallback simple copy:', ffErr.message);
-      try {
-        await runFfmpeg(['-y', '-i', tempPath, '-c', 'copy', clipPath]);
-      } catch {
-        fs.copyFileSync(tempPath, clipPath);
+      console.warn('[instant-replay] Fast remux failed, attempting fallback copy/transcode:', ffErr.message);
+      if (tempFiles.length === 1) {
+        try {
+          await runFfmpeg(['-y', '-fflags', '+genpts+igndts', '-i', tempFiles[0], '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-threads', '2', clipPath]);
+        } catch {
+          fs.copyFileSync(tempFiles[0], clipPath);
+        }
       }
     }
 
-    try {
-      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-    } catch {}
+    // Clean up temporary segment and list files
+    tempFiles.forEach((f) => {
+      try { if (fs.existsSync(f)) fs.unlinkSync(f); } catch {}
+    });
+    try { if (fs.existsSync(concatListPath)) fs.unlinkSync(concatListPath); } catch {}
 
-    if (!fs.existsSync(clipPath) || fs.statSync(clipPath).size < 1024) {
-      throw new Error('File clip MP4 tạo ra không hợp lệ');
+    if (!fs.existsSync(clipPath) || fs.statSync(clipPath).size < 10 * 1024) {
+      throw new Error('Generated MP4 clip file is invalid or smaller than 10KB');
     }
 
     const stat = fs.statSync(clipPath);

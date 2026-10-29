@@ -1,6 +1,6 @@
 // Capri Instant Replay Rolling Ring-Buffer Engine
-// Continuous in-memory circular buffer (30s/60s), zero SSD wear.
-// Muxes to MP4 on "Clip that" or Alt+F10.
+// Rotating 15-second independent self-contained WebM segments, zero SSD wear.
+// Muxes & concatenates to MP4 on "Clip that" or Alt+F10.
 
 export class InstantReplayBuffer {
   constructor({ host, panel, voice, fx, capri }) {
@@ -11,12 +11,13 @@ export class InstantReplayBuffer {
     this.capri = capri;
 
     this.active = false;
-    this.bufferSeconds = 30; // 15, 30, 60, 90
-    this.maxBytes = 120 * 1024 * 1024; // 120 MB RAM safety cap
-    this.ringBuffer = []; // [{ blob, time, size }]
-    this.currentBytes = 0;
+    this.segmentDurationSec = 15; // 15s per segment
+    this.maxSegments = 3; // Keep last 3 completed segments (~45s)
+    this.completedSegments = []; // Array of complete standalone WebM Blobs
+    this.currentChunks = [];
     this.stream = null;
     this.mediaRecorder = null;
+    this.rotateTimer = null;
     this.chosenMime = '';
     this.isClipping = false;
     this.onCutin = null; // callback to trigger anime speedlines celebration
@@ -24,10 +25,10 @@ export class InstantReplayBuffer {
 
   async start(seconds = 30) {
     if (this.active) return true;
-    this.bufferSeconds = seconds;
+    this.maxSegments = Math.max(2, Math.ceil(seconds / 15));
 
     try {
-      console.log(`[replay-buffer] Initializing rolling ring-buffer (${this.bufferSeconds}s)...`);
+      console.log(`[replay-buffer] Initializing segmented rolling buffer (keeping last ${this.maxSegments} x 15s segments)...`);
       let stream = null;
 
       try {
@@ -62,7 +63,7 @@ export class InstantReplayBuffer {
         videoTrack.onended = () => {
           console.warn('[replay-buffer] Display track ended, restarting buffer...');
           this.active = false;
-          setTimeout(() => this.start(this.bufferSeconds), 2000);
+          setTimeout(() => this.start(seconds), 2000);
         };
       }
 
@@ -75,44 +76,10 @@ export class InstantReplayBuffer {
       ];
       this.chosenMime = candidates.find((m) => MediaRecorder.isTypeSupported(m)) || 'video/webm';
 
-      const options = {
-        videoBitsPerSecond: 8000000,
-        mimeType: this.chosenMime,
-      };
-
-      this.mediaRecorder = new MediaRecorder(stream, options);
-      this.initChunk = null;
-      this.ringBuffer = [];
-      this.currentBytes = 0;
-
-      this.mediaRecorder.ondataavailable = (e) => {
-        if (!e.data || e.data.size === 0) return;
-        const now = performance.now();
-        if (!this.initChunk) {
-          this.initChunk = e.data;
-        }
-        const chunk = { blob: e.data, time: now, size: e.data.size };
-
-        this.ringBuffer.push(chunk);
-        this.currentBytes += chunk.size;
-
-        // Prune chunks older than bufferSeconds
-        const cutoff = now - (this.bufferSeconds * 1000);
-        while (this.ringBuffer.length > 0 && this.ringBuffer[0].time < cutoff) {
-          const dropped = this.ringBuffer.shift();
-          this.currentBytes -= dropped.size;
-        }
-
-        // Hard RAM safety cap (120 MB)
-        while (this.currentBytes > this.maxBytes && this.ringBuffer.length > 5) {
-          const dropped = this.ringBuffer.shift();
-          this.currentBytes -= dropped.size;
-        }
-      };
-
-      this.mediaRecorder.start(1000); // 1-second segments
+      this.completedSegments = [];
       this.active = true;
-      console.log('[replay-buffer] Rolling buffer active.');
+      this.startSegment();
+      console.log('[replay-buffer] Rolling segmented buffer active.');
       return true;
     } catch (err) {
       console.warn('[replay-buffer] Could not start instant replay buffer:', err.message);
@@ -121,8 +88,70 @@ export class InstantReplayBuffer {
     }
   }
 
+  startSegment() {
+    if (!this.active || !this.stream) return;
+    if (this.rotateTimer) {
+      clearTimeout(this.rotateTimer);
+      this.rotateTimer = null;
+    }
+
+    try {
+      this.currentChunks = [];
+      const options = {
+        videoBitsPerSecond: 8000000,
+        mimeType: this.chosenMime,
+      };
+
+      const recorder = new MediaRecorder(this.stream, options);
+      this.mediaRecorder = recorder;
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          this.currentChunks.push(e.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        if (this.currentChunks.length > 0) {
+          const segBlob = new Blob(this.currentChunks, { type: this.chosenMime });
+          if (segBlob.size > 1000) {
+            this.completedSegments.push(segBlob);
+            while (this.completedSegments.length > this.maxSegments) {
+              this.completedSegments.shift();
+            }
+          }
+        }
+        this.currentChunks = [];
+      };
+
+      recorder.start(1000);
+
+      this.rotateTimer = setTimeout(() => {
+        if (this.active && !this.isClipping) {
+          this.rotateSegment();
+        }
+      }, this.segmentDurationSec * 1000);
+    } catch (e) {
+      console.warn('[replay-buffer] startSegment error:', e);
+    }
+  }
+
+  rotateSegment() {
+    if (!this.active || !this.mediaRecorder) return;
+    try {
+      if (this.mediaRecorder.state === 'recording') {
+        this.mediaRecorder.stop();
+      }
+    } catch {}
+    this.startSegment();
+  }
+
   stop() {
     this.active = false;
+    if (this.rotateTimer) {
+      clearTimeout(this.rotateTimer);
+      this.rotateTimer = null;
+    }
     if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
       try { this.mediaRecorder.stop(); } catch {}
     }
@@ -130,66 +159,75 @@ export class InstantReplayBuffer {
       this.stream.getTracks().forEach((t) => t.stop());
       this.stream = null;
     }
-    this.ringBuffer = [];
-    this.currentBytes = 0;
+    this.completedSegments = [];
+    this.currentChunks = [];
   }
 
   /**
    * "Clip That" / "Clip That Shit" triggered!
    */
   async clip() {
-    if (this.isClipping) return { ok: false, error: 'Đang xử lý clip khác.' };
+    if (this.isClipping) return { ok: false, error: 'Already processing another clip.' };
     this.isClipping = true;
 
     try {
       this.voice.play('star');
 
       // If buffer is empty or not started, start and record 3s on the fly
-      if (!this.active || this.ringBuffer.length === 0) {
-        this.panel?.setTicker?.({ verb: 'RECORDING', target: 'Đang ghi lại clip 3s...' });
-        const started = await this.start(this.bufferSeconds);
+      if (!this.active || (this.completedSegments.length === 0 && this.currentChunks.length === 0)) {
+        this.panel?.setTicker?.({ verb: 'RECORDING', target: 'Recording 3s clip...' });
+        const started = await this.start(30);
         if (!started) {
           this.isClipping = false;
-          return { ok: false, error: 'Không thể truy cập màn hình để clip.' };
+          return { ok: false, error: 'Cannot access display for instant replay.' };
         }
         await new Promise((r) => setTimeout(r, 3000));
       }
 
-      // Request latest chunk from MediaRecorder
+      // Finalize current segment to capture the most recent seconds
       if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
-        try { this.mediaRecorder.requestData(); } catch {}
-        await new Promise((r) => setTimeout(r, 250));
+        await new Promise((resolve) => {
+          this.mediaRecorder.onstop = () => {
+            if (this.currentChunks.length > 0) {
+              const segBlob = new Blob(this.currentChunks, { type: this.chosenMime });
+              if (segBlob.size > 1000) {
+                this.completedSegments.push(segBlob);
+                while (this.completedSegments.length > this.maxSegments) {
+                  this.completedSegments.shift();
+                }
+              }
+            }
+            this.currentChunks = [];
+            resolve();
+          };
+          try {
+            this.mediaRecorder.stop();
+          } catch {
+            resolve();
+          }
+        });
       }
 
-      if (this.ringBuffer.length === 0) {
-        await new Promise((r) => setTimeout(r, 1000));
-        try { this.mediaRecorder?.requestData(); } catch {}
-        await new Promise((r) => setTimeout(r, 250));
-      }
-
-      if (this.ringBuffer.length === 0) {
+      if (this.completedSegments.length === 0) {
         this.isClipping = false;
-        return { ok: false, error: 'Chưa có đủ dữ liệu trong bộ đệm.' };
+        return { ok: false, error: 'Insufficient data in replay buffer.' };
       }
 
-      // Extract blobs: preserve initSegment container header
-      const blobs = [];
-      if (this.initChunk && (this.ringBuffer.length === 0 || this.ringBuffer[0].blob !== this.initChunk)) {
-        blobs.push(this.initChunk);
-      }
-      blobs.push(...this.ringBuffer.map((c) => c.blob));
-      const combinedBlob = new Blob(blobs, { type: this.chosenMime });
-      const arrayBuffer = await combinedBlob.arrayBuffer();
-
-      console.log(`[replay-buffer] Sending ${arrayBuffer.byteLength} bytes to ffmpeg remux...`);
+      console.log(`[replay-buffer] Sending ${this.completedSegments.length} segment(s) to ffmpeg concat remux...`);
 
       // Trigger Anime Cut-in celebration
       if (this.onCutin) {
         this.onCutin();
       }
 
+      // Convert all segment blobs to ArrayBuffers
+      const segmentBuffers = await Promise.all(this.completedSegments.map((b) => b.arrayBuffer()));
+
       // Save to MP4 via host
-      const res = await this.host.saveInstantReplay(arrayBuffer, this.chosenMime);
+      const res = await this.host.saveInstantReplay(segmentBuffers, this.chosenMime);
+
+      // Restart recording rotation immediately
+      this.startSegment();
 
       if (res.ok) {
         this.voice.play('done');
@@ -200,12 +238,12 @@ export class InstantReplayBuffer {
           kind: 'done',
           face: 'smug',
           badge: 'CLIP CAPTURED',
-          line: `ĐÃ LƯU PHA HIGHLIGHT VỪA RỒI! (${this.bufferSeconds}s)`,
-          summary: `Đã đóng gói siêu tốc sang MP4: ${res.fileName}`,
+          line: `SAVED HIGHLIGHT REPLAY CLIP! (${this.completedSegments.length * 15}s)`,
+          summary: `Ultra-fast remux to MP4 complete: ${res.fileName}`,
           actions: [
-            { id: 'watch', label: 'Xem ngay', primary: true },
-            { id: 'discord', label: 'Gửi lên Discord' },
-            { id: 'folder', label: 'Mở thư mục' }
+            { id: 'watch', label: 'Watch Now', primary: true },
+            { id: 'discord', label: 'Send to Discord' },
+            { id: 'folder', label: 'Open Folder' }
           ],
           onAction: (id) => {
             if (id === 'watch') this.host.openReplayFile(res.filePath);
@@ -218,7 +256,7 @@ export class InstantReplayBuffer {
 
         return { ok: true, filePath: res.filePath };
       } else {
-        throw new Error(res.error || 'FFmpeg đóng gói thất bại');
+        throw new Error(res.error || 'FFmpeg remux failed');
       }
     } catch (err) {
       console.error('[replay-buffer] Clip failed:', err);
@@ -227,7 +265,7 @@ export class InstantReplayBuffer {
         kind: 'error',
         face: 'laugh',
         badge: 'REPLAY ERROR',
-        line: `Không thể lưu clip: ${err.message}`,
+        line: `Could not save replay clip: ${err.message}`,
         hold: 4000
       });
       return { ok: false, error: err.message };

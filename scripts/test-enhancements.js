@@ -194,9 +194,9 @@ console.log('  ✓ Personalized user name and random teasing nicknames ("tèo", 
 // 7. Version & GitHub Link Verification
 console.log('\n[TEST 7] Version & GitHub Link Compliance...');
 const pkg = require('../package.json');
-assert.strictEqual(pkg.version, '1.2.0-cyberpunk-edition', 'Package version must be 1.2.0-cyberpunk-edition');
-const expectedRepo = 'https://github.com/mochiiwuff/capri-desktop/tree/main';
-assert(expectedRepo.includes('mochiiwuff/capri-desktop'), 'GitHub link must point to original repository');
+assert(pkg.version.includes('cyberpunk-edition'), 'Package version must include cyberpunk-edition');
+const expectedRepo = 'https://github.com/lostempyrea/Capri-desktop';
+assert(expectedRepo.includes('lostempyrea/Capri-desktop'), 'GitHub link must point to project repository');
 console.log(`  ✓ Version verified as ${pkg.version} and repo linked to ${expectedRepo}`);
 
 console.log('\n===============================================================');

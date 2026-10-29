@@ -48,9 +48,10 @@ const DEFAULTS = {
   scale: 0.6,
   muted: false,
   volume: 0.7,
-  lang: 'vi',
+  lang: 'en',
   displayId: null,
-  wander: false, // In Cyberpunk mini mode, stays docked at bottom corner
+  wander: true,
+  wanderWhenIdle: true,
   possess: false,
   visible: true,
   welcomed: true,
@@ -59,6 +60,9 @@ const DEFAULTS = {
   wakeWord: true,
   inactivityMinutes: 0.5, // 30s
   micDeviceId: null,
+  vfxVolume: 0.8,
+  discordToken: process.env.DISCORD_BOT_TOKEN || '',
+  discordUserId: process.env.DISCORD_USER_ID || process.env.DISCORD_ALLOWED_USER_ID || '',
 
   // Cyberpunk Overhaul Settings
   apiVault: {
@@ -115,6 +119,7 @@ const DEFAULTS = {
     ttsApiKey: '',
     inputDeviceId: null,
     ttsEnabled: true,
+    vfxVolume: 0.8,
   },
 
   system: {

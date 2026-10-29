@@ -15,13 +15,13 @@ const THINK_SAY = 40000;
 const THINK_LONG = 120000;
 
 export class Brain {
-  constructor({ capri, panel, voice, host, mission, lang = 'fr' }) {
+  constructor({ capri, panel, voice, host, mission, lang = 'en' }) {
     this.capri = capri;
     this.panel = panel;
     this.voice = voice;
     this.host = host;
     this.mission = mission; // today's log, for her report card (mission.js)
-    this.lang = lang;
+    this.lang = 'en';
     this.sessions = new Map();
     this.replyFor = null;    // the session whose answer she's holding up for you
     this.linked = true;      // has a Claude Code event ever reached her (app.js sets it from the config)
@@ -33,7 +33,7 @@ export class Brain {
   }
 
   get t() {
-    return LINES[this.lang] || LINES.vi || LINES.en;
+    return LINES[this.lang] || LINES.en;
   }
 
   session(evt) {
@@ -365,22 +365,17 @@ export class Brain {
   // What's going on, in plain words, for her chat: so she can answer "what's the agent up to?".
   context() {
     const busy = this.busySessions.sort((a, b) => b.seen - a.seen);
-    const isVi = this.lang === 'vi';
     const now = busy.length
       ? busy.map((s) => {
         const agent = s.agent || 'Antigravity';
-        const time = s.taskStart ? ` for ${duration(Date.now() - s.taskStart, isVi ? 'vi' : 'en')}` : '';
+        const time = s.taskStart ? ` for ${duration(Date.now() - s.taskStart, 'en')}` : '';
         const last = s.last ? `, last: ${s.last.verb} ${s.last.target}` : '';
-        return isVi
-          ? `${agent} đang cày dự án ${s.project}${time} (đã xong ${plural(s.count, ['thao tác', 'thao tác'], 'vi')}${last}).`
-          : `${agent} is working on ${s.project}${time} (${plural(s.count, ['action', 'actions'], 'en')} so far${last}).`;
+        return `${agent} is working on ${s.project}${time} (${plural(s.count, ['action', 'actions'], 'en')} so far${last}).`;
       }).join(' ')
-      : (isVi ? 'Agent đang rảnh rỗi, chưa có việc gì chạy cả.' : 'The AI agent is idle.');
+      : 'The AI agent is idle.';
     const d = this.mission?.day;
     const today = d
-      ? (isVi
-        ? ` Hôm nay: ${d.missions} kèo xong, ${d.actions} thao tác, ${d.files} tệp đã sửa, ${d.errors} lỗi.`
-        : ` Today: ${d.missions} tasks finished, ${d.actions} actions, ${d.files} files changed, ${d.errors} errors.`)
+      ? ` Today: ${d.missions} tasks finished, ${d.actions} actions, ${d.files} files changed, ${d.errors} errors.`
       : '';
     return now + today;
   }

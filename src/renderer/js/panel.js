@@ -2,6 +2,7 @@
 // Projects above the Mini Biochip emitter with Holo-Character-Stage (Left 220px) and Holo-Content-Area (Right Flex).
 
 import { clamp, ease, reducedMotion } from './util.js';
+import { LINES } from './lines.js';
 
 const NOISE = '▚▞▙▟░▒#%&/\\<>01XZ';
 
@@ -63,7 +64,7 @@ function getFacesImage() {
   return facesImg;
 }
 
-function drawCapriAvatarOnCanvas(canvas, faceNameOrIndex) {
+function drawCapriAvatarOnCanvas(canvas, faceNameOrIndex, offsetY = 0) {
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
@@ -78,7 +79,7 @@ function drawCapriAvatarOnCanvas(canvas, faceNameOrIndex) {
   const render = () => {
     ctx.clearRect(0, 0, w, h);
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(img, sx, 0, sw, sh, 0, 0, w, h);
+    ctx.drawImage(img, sx, 0, sw, sh, 0, offsetY, w, h);
   };
 
   if (img.complete && img.naturalWidth > 0) {
@@ -94,128 +95,114 @@ function registerCapriAvatar(container, baseFace = 'normal', isLive = false) {
   const canvas = container.querySelector('canvas');
   if (!canvas) return null;
 
+  if (container._avatarAnimId) {
+    cancelAnimationFrame(container._avatarAnimId);
+    container._avatarAnimId = null;
+  }
   if (container._avatarLoopTimer) {
     clearTimeout(container._avatarLoopTimer);
     container._avatarLoopTimer = null;
   }
-  if (container._avatarSpeakTimer) {
-    clearInterval(container._avatarSpeakTimer);
-    container._avatarSpeakTimer = null;
-  }
 
   container.dataset.face = baseFace;
-  drawCapriAvatarOnCanvas(canvas, baseFace);
 
   let isSpeaking = isLive;
   let speakFrameIdx = 0;
   const speakFrames = [3, 1, 2, 1, 0, 1];
+  let lastSpeakTime = 0;
+  let glanceUntil = 0;
+  let glanceFace = 'glance';
+
+  // Smooth rAF loop with gentle Math.sin(t) bobbing & 12 FPS lip sync
+  const avatarLoop = (now) => {
+    if (!container.isConnected) {
+      if (container._avatarAnimId) cancelAnimationFrame(container._avatarAnimId);
+      return;
+    }
+
+    const t = now * 0.003;
+    const bobY = Math.sin(t) * 1.5;
+
+    if (isSpeaking) {
+      // 12 FPS lip sync (~83ms per frame)
+      if (now - lastSpeakTime > 83) {
+        lastSpeakTime = now;
+        speakFrameIdx = (speakFrameIdx + 1) % speakFrames.length;
+      }
+      drawCapriAvatarOnCanvas(canvas, speakFrames[speakFrameIdx], bobY);
+    } else {
+      if (now < glanceUntil) {
+        drawCapriAvatarOnCanvas(canvas, glanceFace, bobY);
+      } else {
+        drawCapriAvatarOnCanvas(canvas, container.dataset.face || baseFace, bobY);
+      }
+    }
+
+    container._avatarAnimId = requestAnimationFrame(avatarLoop);
+  };
 
   const scheduleNextIdle = () => {
-    if (container._avatarLoopTimer) clearTimeout(container._avatarLoopTimer);
     if (isSpeaking) return;
-
-    const delay = 2500 + Math.random() * 2000;
+    const delay = 2500 + Math.random() * 2500;
     container._avatarLoopTimer = setTimeout(() => {
       if (!container.isConnected || isSpeaking) return;
 
       const rand = Math.random();
-      const currentBase = container.dataset.face || baseFace;
-
       if (rand < 0.45) {
         // Quick blink
-        drawCapriAvatarOnCanvas(canvas, 'glance');
-        setTimeout(() => {
-          if (container.isConnected && !isSpeaking) {
-            drawCapriAvatarOnCanvas(canvas, currentBase);
-          }
-        }, 150);
+        glanceFace = 'glance';
+        glanceUntil = performance.now() + 160;
       } else if (rand < 0.8) {
         // Glance or look aside
         const idleFaces = ['look', 'grin', 'zigzag', 'watch'];
-        const chosen = idleFaces[Math.floor(Math.random() * idleFaces.length)];
-        drawCapriAvatarOnCanvas(canvas, chosen);
-        setTimeout(() => {
-          if (container.isConnected && !isSpeaking) {
-            drawCapriAvatarOnCanvas(canvas, currentBase);
-          }
-        }, 350 + Math.random() * 250);
+        glanceFace = idleFaces[Math.floor(Math.random() * idleFaces.length)];
+        glanceUntil = performance.now() + 450;
       } else {
-        // Subtle 1-frame glitch
+        // Subtle glitch effect
         container.classList.add('is-glitching');
-        drawCapriAvatarOnCanvas(canvas, 'all_eyes');
-        setTimeout(() => {
-          container.classList.remove('is-glitching');
-          if (container.isConnected && !isSpeaking) {
-            drawCapriAvatarOnCanvas(canvas, currentBase);
-          }
-        }, 100);
+        glanceFace = 'all_eyes';
+        glanceUntil = performance.now() + 120;
+        setTimeout(() => container.classList.remove('is-glitching'), 120);
       }
 
       scheduleNextIdle();
     }, delay);
   };
 
-  const startIdleLoop = () => {
-    scheduleNextIdle();
-  };
-
-  const startSpeakingLoop = () => {
-    if (container._avatarSpeakTimer) clearInterval(container._avatarSpeakTimer);
-    container.classList.add('is-speaking', 'is-speaking-jitter');
-    container._avatarSpeakTimer = setInterval(() => {
-      if (!container.isConnected || !isSpeaking) {
-        clearInterval(container._avatarSpeakTimer);
-        container._avatarSpeakTimer = null;
-        container.classList.remove('is-speaking', 'is-speaking-jitter');
-        drawCapriAvatarOnCanvas(canvas, container.dataset.face || baseFace);
-        startIdleLoop();
-        return;
-      }
-      speakFrameIdx = (speakFrameIdx + 1) % speakFrames.length;
-      drawCapriAvatarOnCanvas(canvas, speakFrames[speakFrameIdx]);
-    }, 140);
-  };
+  scheduleNextIdle();
+  container._avatarAnimId = requestAnimationFrame(avatarLoop);
 
   const controller = {
     setSpeaking(val) {
       if (isSpeaking === val) return;
       isSpeaking = val;
       if (isSpeaking) {
+        container.classList.add('is-speaking');
         if (container._avatarLoopTimer) {
           clearTimeout(container._avatarLoopTimer);
           container._avatarLoopTimer = null;
         }
-        startSpeakingLoop();
       } else {
-        if (container._avatarSpeakTimer) {
-          clearInterval(container._avatarSpeakTimer);
-          container._avatarSpeakTimer = null;
-        }
-        container.classList.remove('is-speaking', 'is-speaking-jitter');
-        drawCapriAvatarOnCanvas(canvas, container.dataset.face || baseFace);
-        startIdleLoop();
+        container.classList.remove('is-speaking');
+        scheduleNextIdle();
       }
     },
     setFace(face) {
       container.dataset.face = face;
-      if (!isSpeaking) {
-        drawCapriAvatarOnCanvas(canvas, face);
-      }
     },
     destroy() {
-      if (container._avatarLoopTimer) clearTimeout(container._avatarLoopTimer);
-      if (container._avatarSpeakTimer) clearInterval(container._avatarSpeakTimer);
+      if (container._avatarAnimId) {
+        cancelAnimationFrame(container._avatarAnimId);
+        container._avatarAnimId = null;
+      }
+      if (container._avatarLoopTimer) {
+        clearTimeout(container._avatarLoopTimer);
+        container._avatarLoopTimer = null;
+      }
     }
   };
 
   container._avatarController = controller;
-
-  if (isLive) {
-    startSpeakingLoop();
-  } else {
-    startIdleLoop();
-  }
-
   return controller;
 }
 
@@ -357,6 +344,7 @@ export class Panel {
     this.missed = null;
     this.chipCenterGetter = null;
     this.capriRef = null;
+    this.chatRef = null;
 
     // Chat form bindings
     this.chatForm = panel.querySelector('.panel__chat');
@@ -462,34 +450,67 @@ export class Panel {
       this.onMicContextMenu?.();
     });
 
-    // Chat form input handling
-    this.chatForm?.addEventListener('click', (e) => e.stopPropagation());
+    // Chat form input handling & submission
+    const triggerSend = () => {
+      const text = this.chatInput?.value.trim();
+      if (!text || this.chatInput.disabled) return;
+      this.handleUserSendMessage(text);
+    };
+
+    this.chatForm?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      try {
+        window.host?.setFocusable?.(true);
+        window.host?.focusOverlay?.(true);
+      } catch {}
+      this.chatInput?.focus();
+    });
+
     this.chatForm?.addEventListener('submit', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      const text = this.chatInput?.value.trim();
-      if (!text || this.chatInput.disabled) return;
-      this.chatInput.value = '';
-      this.current?.onSend?.(text);
+      triggerSend();
+    });
+
+    this.chatSend?.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      triggerSend();
     });
 
     this.chatInput?.addEventListener('mousedown', (e) => {
       e.stopPropagation();
-      window.host?.setFocusable?.(true);
+      try {
+        window.host?.setFocusable?.(true);
+        window.host?.focusOverlay?.(true);
+      } catch {}
     });
+
     this.chatInput?.addEventListener('focus', () => {
       this.setInputFocused(true);
-      window.host?.setFocusable?.(true);
+      try {
+        window.host?.setFocusable?.(true);
+        window.host?.focusOverlay?.(true);
+      } catch {}
     });
+
     this.chatInput?.addEventListener('blur', () => {
       this.setInputFocused(false);
     });
+
     this.chatInput?.addEventListener('input', () => {
       this.resetDismissCountdown();
     });
+
     this.chatInput?.addEventListener('keydown', (e) => {
-      e.stopPropagation();
-      if (e.key === 'Escape') this.hide();
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        triggerSend();
+      } else if (e.key === 'Escape') {
+        e.stopPropagation();
+        this.hide();
+      }
     });
 
     // Hover detection for Smart Countdown
@@ -511,26 +532,26 @@ export class Panel {
         </div>
         <span class="panel__music-time">00:00 / --:--</span>
       </div>
-      <div class="panel__progress-wrap holo-media-progress-wrap" title="Tua bài hát">
+      <div class="panel__progress-wrap holo-media-progress-wrap" title="Seek">
         <div class="panel__progress-bar holo-media-progress-bar"></div>
       </div>
       <div class="panel__music-ctrls holo-media-dock__ctrls">
-        <button class="panel__music-btn holo-music-btn" data-action="prev" type="button" title="Bài trước">
+        <button class="panel__music-btn holo-music-btn" data-action="prev" type="button" title="Previous Track">
           <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor"><polygon points="19 20 9 12 19 4 19 20"></polygon><line x1="5" y1="19" x2="5" y2="5" stroke="currentColor" stroke-width="2"></line></svg>
         </button>
-        <button class="panel__music-btn is-toggle holo-music-btn" data-action="toggle" type="button" title="Phát / Tạm dừng">
+        <button class="panel__music-btn is-toggle holo-music-btn" data-action="toggle" type="button" title="Play / Pause">
           <svg class="play-svg" viewBox="0 0 24 24" width="10" height="10" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
         </button>
-        <button class="panel__music-btn holo-music-btn" data-action="stop" type="button" title="Dừng">
+        <button class="panel__music-btn holo-music-btn" data-action="stop" type="button" title="Stop">
           <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor"><rect x="6" y="6" width="12" height="12"></rect></svg>
         </button>
-        <button class="panel__music-btn holo-music-btn" data-action="next" type="button" title="Bài tiếp">
+        <button class="panel__music-btn holo-music-btn" data-action="next" type="button" title="Next Track">
           <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="2"></line></svg>
         </button>
-        <button class="panel__music-btn holo-music-btn" data-action="radio" type="button" title="Đổi đài Radio">
+        <button class="panel__music-btn holo-music-btn" data-action="radio" type="button" title="Switch Radio Station">
           <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="2"></circle><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"></path></svg>
         </button>
-        <input class="panel__vol-slider holo-vol-slider" type="range" min="0" max="100" value="70" title="Âm lượng">
+        <input class="panel__vol-slider holo-vol-slider" type="range" min="0" max="100" value="70" title="Volume">
       </div>
     `;
 
@@ -575,7 +596,7 @@ export class Panel {
   }
 
   get visible() {
-    return !this.el.hidden && !this.suspended && !this.leaving;
+    return (Boolean(this.isPanelOpen) || !this.el.hidden) && !this.suspended && !this.leaving && this.el.style.display !== 'none';
   }
 
   bindCapri(capri) {
@@ -585,6 +606,10 @@ export class Panel {
   bindChip(chip) {
     this.chipRef = chip;
     this.chip = chip;
+  }
+
+  bindChat(chat) {
+    this.chatRef = chat;
   }
 
   setChipCenterGetter(fn) {
@@ -809,20 +834,31 @@ export class Panel {
     }
     this.renderLog(msg.log || []);
 
+    this.isPanelOpen = true;
     this.tickerEl.hidden = true;
     this.leaving = false;
     this.el.hidden = false;
-    this.el.classList.remove('is-leaving');
+    this.el.classList.remove('hidden', 'closed', 'is-leaving');
+    this.el.classList.add('open', 'active');
+    this.el.style.setProperty('display', 'flex', 'important');
+    this.el.style.setProperty('opacity', '1', 'important');
+    this.el.style.setProperty('visibility', 'visible', 'important');
+    this.el.style.setProperty('pointer-events', 'auto', 'important');
     document.body.classList.add('is-panel-open');
-    this.chip?.hideSpeech?.();
-    this.chip?.hideQuickInput?.(true);
-    this.chip?.clearStatusBadge?.();
-    this.place();
-    this.decode(msg.line || '', msg.kind);
 
-    if (this.chatHistory) {
-      this.chatHistory.scrollTop = this.chatHistory.scrollHeight;
-    }
+    try { this.chip?.hideSpeech?.(); } catch (err) { console.error('[panel] hideSpeech:', err); }
+    try { this.chip?.hideQuickInput?.(true); } catch (err) { console.error('[panel] hideQuickInput:', err); }
+    try { this.chip?.clearStatusBadge?.(); } catch (err) { console.error('[panel] clearStatusBadge:', err); }
+    try { this.capriRef?.recallToStage?.(); } catch (err) { console.error('[panel] recallToStage:', err); }
+    try { this.capriRef?.resumeLoop?.(); } catch (err) { console.error('[panel] resumeLoop:', err); }
+    try { this.place(); } catch (err) { console.error('[panel] place:', err); }
+    try { this.decode(msg.line || '', msg.kind); } catch (err) { console.error('[panel] decode:', err); }
+
+    try {
+      if (this.chatHistory) {
+        this.chatHistory.scrollTop = this.chatHistory.scrollHeight;
+      }
+    } catch (err) { console.error('[panel] scroll:', err); }
 
     if (msg.hold) {
       this.startDismissCountdown(msg.hold);
@@ -925,18 +961,25 @@ export class Panel {
   renderChat(chat) {
     this.el.classList.toggle('is-chat', Boolean(chat));
     this.line?.classList.remove('is-streaming');
-    if (this.chatForm) this.chatForm.hidden = !chat;
+    if (this.chatForm) {
+      this.chatForm.hidden = false;
+      this.chatForm.style.setProperty('display', 'flex', 'important');
+    }
+    if (this.chatHistory) {
+      this.chatHistory.hidden = false;
+      this.chatHistory.style.setProperty('display', 'flex', 'important');
+    }
     if (this.note) this.note.hidden = !chat;
-    if (!chat || !this.chatInput) return;
+    if (!this.chatInput) return;
 
-    this.chatInput.placeholder = chat.placeholder || 'Gửi tin nhắn hoặc ra lệnh cho Capri...';
-    this.chatInput.setAttribute('aria-label', chat.placeholder);
+    this.chatInput.placeholder = chat?.placeholder || 'Transmit message or command to Capri...';
+    this.chatInput.setAttribute('aria-label', chat?.placeholder || 'Transmit message or command to Capri...');
     this.chatInput.disabled = false;
     if (this.chatSend) {
       this.chatSend.disabled = false;
-      this.chatSend.textContent = chat.send || 'Gửi';
+      this.chatSend.textContent = chat?.send || 'Send';
     }
-    if (this.note) {
+    if (this.note && chat) {
       const tag = document.createElement('b');
       tag.textContent = chat.noteTag || '';
       this.note.replaceChildren(tag, ` ${chat.note || ''}`);
@@ -1009,6 +1052,28 @@ export class Panel {
         img.src = validUrl;
         el.style.backgroundImage = 'none';
       });
+    }
+  }
+
+  async handleUserSendMessage(text) {
+    if (!text || !String(text).trim()) return;
+    const cleanText = String(text).trim();
+
+    // 1. Immediately clear the input field
+    if (this.chatInput) {
+      this.chatInput.value = '';
+    }
+
+    // 2. Delegate to Chat core handler if available
+    if (this.chatRef && typeof this.chatRef.handleUserSendMessage === 'function') {
+      await this.chatRef.handleUserSendMessage(cleanText);
+    } else if (this.chatRef && typeof this.chatRef.send === 'function') {
+      await this.chatRef.send(cleanText);
+    } else if (typeof this.current?.onSend === 'function') {
+      this.appendChatMessage('user', cleanText);
+      this.current.onSend(cleanText);
+    } else {
+      this.appendChatMessage('user', cleanText);
     }
   }
 
@@ -1145,7 +1210,9 @@ export class Panel {
   setChatBusy(busy) {
     if (this.chatInput) this.chatInput.disabled = busy;
     if (this.chatSend) this.chatSend.disabled = busy;
-    if (!busy && this.current?.chat) this.chatInput?.focus();
+    if (!busy) {
+      requestAnimationFrame(() => this.chatInput?.focus());
+    }
     this.setThinking(busy);
   }
 
@@ -1201,20 +1268,107 @@ export class Panel {
     this.log.hidden = entries.length === 0;
   }
 
+  openPanel() {
+    this.show();
+  }
+
+  showPanel() {
+    this.show();
+  }
+
   show() {
+    this.isPanelOpen = true;
+    this.switchTab('chat');
     this.el.hidden = false;
+    this.el.classList.remove('hidden', 'closed', 'is-leaving');
+    this.el.classList.add('open', 'active');
+    this.el.style.setProperty('display', 'flex', 'important');
+    this.el.style.setProperty('opacity', '1', 'important');
+    this.el.style.setProperty('visibility', 'visible', 'important');
+    this.el.style.setProperty('pointer-events', 'auto', 'important');
     this.leaving = false;
     document.body.classList.add('is-panel-open');
-    this.chip?.hideSpeech?.();
-    this.chip?.hideQuickInput?.(true);
-    this.chip?.clearStatusBadge?.();
-    this.capriRef?.resumeLoop?.();
-    this.place();
-    this.chatInput?.focus();
-    window.host?.setFocusable?.(true);
+
+    if (this.chatForm) {
+      this.chatForm.hidden = false;
+      this.chatForm.style.setProperty('display', 'flex', 'important');
+    }
+    if (this.chatHistory) {
+      this.chatHistory.hidden = false;
+      this.chatHistory.style.setProperty('display', 'flex', 'important');
+    }
+    if (this.chatInput) {
+      this.chatInput.disabled = false;
+      if (!this.chatInput.placeholder) {
+        this.chatInput.placeholder = 'Transmit message or command to Capri...';
+      }
+    }
+    if (this.chatSend) {
+      this.chatSend.disabled = false;
+    }
+
+    // Always ensure chat history is populated and chatRef marked open
+    if (this.chatRef) {
+      this.chatRef.open = true;
+    }
+    if (this.chatRef?.history && Array.isArray(this.chatRef.history) && this.chatRef.history.length > 0) {
+      this.renderChatHistory(this.chatRef.history);
+    } else {
+      try {
+        const raw = localStorage.getItem('capri.chatHistoryPersistent');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            this.renderChatHistory(parsed);
+          }
+        }
+      } catch {}
+    }
+
+    try { this.chip?.hideSpeech?.(); } catch (err) { console.error('[panel] hideSpeech err:', err); }
+    try { this.chip?.hideQuickInput?.(true); } catch (err) { console.error('[panel] hideQuickInput err:', err); }
+    try { this.chip?.clearStatusBadge?.(); } catch (err) { console.error('[panel] clearStatusBadge err:', err); }
+    try { this.capriRef?.recallToStage?.(); } catch (err) { console.error('[panel] recallToStage err:', err); }
+    try { this.capriRef?.resumeLoop?.(); } catch (err) { console.error('[panel] resumeLoop err:', err); }
+    try { this.place(); } catch (err) { console.error('[panel] place err:', err); }
+
+    try {
+      window.host?.setFocusable?.(true);
+      window.host?.focusOverlay?.(true);
+    } catch (err) { console.error('[panel] setFocusable err:', err); }
+
+    requestAnimationFrame(() => {
+      try {
+        if (this.chatInput) {
+          this.chatInput.focus();
+        }
+      } catch {}
+    });
+    setTimeout(() => {
+      try {
+        if (this.chatInput) {
+          this.chatInput.focus();
+        }
+      } catch {}
+    }, 60);
+
+    try {
+      if (this.chatHistory) {
+        this.chatHistory.scrollTop = this.chatHistory.scrollHeight;
+      }
+    } catch (err) { console.error('[panel] chatHistory err:', err); }
+  }
+
+  togglePanel() {
+    if (this.visible) {
+      this.hide();
+    } else {
+      this.openPanel();
+    }
   }
 
   hide() {
+    this.isPanelOpen = false;
     clearTimeout(this.hideTimer);
     clearInterval(this.decodeTimer);
     if (this.countTimer) {
@@ -1226,34 +1380,34 @@ export class Panel {
       this.dismissInterval = null;
     }
     if (this.timerBar) this.timerBar.style.width = '100%';
-    this.setSpeaking(false);
-    this.onTalk?.(false);
-    this.capriRef?.pauseLoop?.();
+    try { this.setSpeaking(false); } catch {}
+    try { this.onTalk?.(false); } catch {}
+    try { this.capriRef?.pauseLoop?.(); } catch {}
 
     // Hide holographic beam
     const beamSvg = document.getElementById('holo-beam');
     if (beamSvg) beamSvg.hidden = true;
 
-    if (this.el.hidden || this.leaving) {
-      document.body.classList.remove('is-panel-open');
-      return;
-    }
+    this.el.hidden = true;
+    this.el.classList.remove('open', 'active');
+    this.el.classList.add('hidden', 'closed');
+    this.el.style.setProperty('display', 'none', 'important');
+    this.el.style.setProperty('pointer-events', 'none', 'important');
+    this.leaving = false;
+    document.body.classList.remove('is-panel-open');
+
     const gone = this.current;
     this.current = null;
-    this.leaving = true;
     if (gone) {
-      this.onDismiss?.(gone);
-      gone.onLeave?.();
+      try { this.onDismiss?.(gone); } catch {}
+      try { gone.onLeave?.(); } catch {}
     }
     const missed = gone?.chat && this.missed;
     this.missed = null;
     if (missed && performance.now() - missed.missedAt < 120000) setTimeout(() => this.say(missed), 400);
 
-    this.el.hidden = true;
-    this.leaving = false;
-    document.body.classList.remove('is-panel-open');
     if (this.tickerAction) this.setTicker(this.tickerAction);
-    this.onHide?.();
+    try { this.onHide?.(); } catch {}
   }
 
   clearKind(kind) {
@@ -1333,7 +1487,7 @@ export class Panel {
     if (mode === 'discord') {
       if (title && window.host?.discordCommand) {
         window.host.discordCommand('play', null, title).then((res) => {
-          this.setTicker({ verb: 'DISCORD', target: res?.ok ? title : (res?.message || 'Lỗi phát Discord') });
+          this.setTicker({ verb: 'DISCORD', target: res?.ok ? title : (res?.message || 'Discord playback error') });
         });
       }
     } else if (mode === 'external') {
@@ -1561,30 +1715,57 @@ export class Panel {
     });
   }
 
-  updateI18n(lang) {
-    const isEn = lang === 'en';
+  updateI18n(lang = 'en') {
+    this.labels = LINES.en || LINES[lang] || {};
     if (this.chatInput) {
-      this.chatInput.placeholder = isEn
-        ? 'Type a message or command for Capri...'
-        : 'Gửi tin nhắn hoặc ra lệnh cho Capri...';
+      this.chatInput.placeholder = 'Transmit message or command to Capri...';
       this.chatInput.setAttribute('aria-label', this.chatInput.placeholder);
     }
     if (this.chatSend) {
-      this.chatSend.textContent = isEn ? 'Send' : 'Gửi';
+      this.chatSend.textContent = 'Send';
     }
     const settingsBtnLabel = this.navBtnSettings?.querySelector('.btn-label');
     if (settingsBtnLabel) {
-      settingsBtnLabel.textContent = isEn ? 'Settings' : 'Cài đặt';
+      settingsBtnLabel.textContent = 'Settings';
     }
     if (this.minBtn) {
-      this.minBtn.title = isEn ? 'Minimize to Biochip' : 'Thu nhỏ về Biochip';
+      this.minBtn.title = 'Minimize to Biochip';
     }
     if (this.closeBtn) {
-      this.closeBtn.title = isEn ? 'Close Projection' : 'Đóng màn hình chiếu';
+      this.closeBtn.title = 'Dismiss Hologram';
     }
     const overflowSettings = this.el.querySelector('#overflow-btn-settings');
     if (overflowSettings) {
-      overflowSettings.textContent = isEn ? 'Settings' : 'Cài đặt';
+      overflowSettings.textContent = 'Settings';
+    }
+
+    // Media player tooltips
+    if (this.musicProgressWrap) {
+      this.musicProgressWrap.title = 'Seek Track';
+    }
+    const prevBtn = this.musicEl?.querySelector('[data-action="prev"]');
+    if (prevBtn) prevBtn.title = 'Previous Track';
+    const toggleBtn = this.musicEl?.querySelector('[data-action="toggle"]');
+    if (toggleBtn) toggleBtn.title = 'Play / Pause';
+    const stopBtn = this.musicEl?.querySelector('[data-action="stop"]');
+    if (stopBtn) stopBtn.title = 'Stop';
+    const nextBtn = this.musicEl?.querySelector('[data-action="next"]');
+    if (nextBtn) nextBtn.title = 'Next Track';
+    const radioBtn = this.musicEl?.querySelector('[data-action="radio"]');
+    if (radioBtn) radioBtn.title = 'Switch Radio Station';
+    if (this.musicVolSlider) {
+      this.musicVolSlider.title = 'Volume';
+    }
+
+    // Quick-chat input in document
+    const quickInput = document.getElementById('biochip-quick-input-field');
+    if (quickInput) {
+      quickInput.placeholder = 'Quick chat or command...';
+      quickInput.title = quickInput.placeholder;
+    }
+    const quickMic = document.getElementById('biochip-quick-mic-btn');
+    if (quickMic) {
+      quickMic.title = 'Voice Input (Alt+V)';
     }
   }
 

@@ -1,0 +1,105 @@
+{
+  "scale": 0.6,
+  "muted": false,
+  "volume": 0.7,
+  "lang": "en",
+  "displayId": null,
+  "wander": true,
+  "wanderWhenIdle": true,
+  "possess": false,
+  "visible": true,
+  "welcomed": true,
+  "linked": false,
+  "agentHookEnabled": false,
+  "wakeWord": true,
+  "inactivityMinutes": 0.5,
+  "micDeviceId": null,
+  "vfxVolume": 0.8,
+  "discordToken": "",
+  "discordUserId": "",
+  "apiVault": {
+    "providers": {
+      "groq": {
+        "id": "groq",
+        "name": "Groq Cloud (Ultra Fast)",
+        "apiKey": "",
+        "baseUrl": "https://api.groq.com/openai/v1",
+        "enabled": true
+      },
+      "gemini": {
+        "id": "gemini",
+        "name": "Google Gemini Studio",
+        "apiKey": "",
+        "baseUrl": "https://generativelanguage.googleapis.com/v1beta/openai/",
+        "enabled": true
+      },
+      "openrouter": {
+        "id": "openrouter",
+        "name": "OpenRouter AI",
+        "apiKey": "",
+        "baseUrl": "https://openrouter.ai/api/v1",
+        "enabled": true
+      },
+      "openai": {
+        "id": "openai",
+        "name": "OpenAI Platform",
+        "apiKey": "",
+        "baseUrl": "https://api.openai.com/v1",
+        "enabled": false
+      },
+      "ollama": {
+        "id": "ollama",
+        "name": "Ollama Local (Offline)",
+        "apiKey": "ollama",
+        "baseUrl": "http://127.0.0.1:11434/v1",
+        "enabled": true
+      }
+    },
+    "failoverOrder": [
+      "groq",
+      "gemini",
+      "openrouter",
+      "openai",
+      "ollama"
+    ],
+    "activeModels": {
+      "chat": "openai/gpt-oss-120b",
+      "vision": "gemini-1.5-flash",
+      "stt": "whisper-large-v3-turbo"
+    }
+  },
+  "voice": {
+    "engine": "edge-tts",
+    "edgeVoiceVi": "vi-VN-HoaiMyNeural",
+    "edgeVoiceEn": "en-US-JennyNeural",
+    "glitchReverb": 0.25,
+    "ttsApiKey": "",
+    "inputDeviceId": null,
+    "ttsEnabled": true,
+    "vfxVolume": 0.8
+  },
+  "system": {
+    "replaySeconds": 30,
+    "replayDir": "",
+    "inactivitySleepSec": 30,
+    "hologramDismissSec": 10,
+    "gamerAutoPilot": true,
+    "focusReminderMinutes": 120,
+    "opacity": 0.95,
+    "theme": "system",
+    "userName": "User",
+    "tickerPosition": {
+      "preset": "top-left",
+      "offsetX": 0,
+      "offsetY": 0,
+      "statusBarOffsetX": 0,
+      "statusBarOffsetY": 0
+    }
+  },
+  "user": {
+    "name": "User",
+    "callsign": "",
+    "randomNick": true,
+    "avatar": ""
+  }
+}

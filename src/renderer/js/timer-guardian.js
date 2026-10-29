@@ -4,13 +4,13 @@
 function getNick() {
   try {
     const custom = (localStorage.getItem('capri.userName') || '').trim();
-    const nicks = ['tèo', 'blue'];
-    if (custom && custom.toLowerCase() !== 'tèo') {
+    const nicks = ['partner', 'choom', 'blue'];
+    if (custom && custom.toLowerCase() !== 'tèo' && custom.toLowerCase() !== 'partner') {
       return Math.random() < 0.6 ? custom : nicks[Math.floor(Math.random() * nicks.length)];
     }
     return nicks[Math.floor(Math.random() * nicks.length)];
   } catch {
-    return Math.random() < 0.5 ? 'tèo' : 'blue';
+    return Math.random() < 0.5 ? 'choom' : 'blue';
   }
 }
 
@@ -29,7 +29,7 @@ export class TimerGuardian {
     this.startFocusWatch();
   }
 
-  setTimer(minutes, title = 'Hẹn giờ') {
+  setTimer(minutes, title = 'Task') {
     const mins = Math.max(1, Math.min(180, Number(minutes) || 1));
     const durationMs = mins * 60 * 1000;
     const endsAt = Date.now() + durationMs;
@@ -46,7 +46,7 @@ export class TimerGuardian {
       kind: 'info',
       face: 'smug',
       badge: 'TIMER SET',
-      line: `⏱️ Đã đặt hẹn giờ ${mins} phút cho "${title}"! Tôi sẽ nhắc bạn khi hết giờ.`,
+      line: `⏱️ Timer set for ${mins} minutes ("${title}")! I'll ping you when time is up.`,
       hold: 4000
     });
 
@@ -59,7 +59,7 @@ export class TimerGuardian {
     this.capri.perform?.('cheer');
 
     const nick = getNick();
-    const msg = `HẾT GIỜ! Đã hết ${mins} phút hẹn giờ cho "${title}". ${nick.charAt(0).toUpperCase() + nick.slice(1)} hãy kiểm tra nhé!`;
+    const msg = `TIME IS UP! Your ${mins}-minute timer for "${title}" has expired, ${nick}!`;
 
     this.panel.say({
       kind: 'alert',
@@ -68,7 +68,7 @@ export class TimerGuardian {
       line: msg,
       hold: 15000,
       actions: [
-        { id: 'ok', label: 'Đã rõ!', primary: true }
+        { id: 'ok', label: 'Acknowledged', primary: true }
       ],
       onAction: () => this.panel.hide()
     });
@@ -90,14 +90,14 @@ export class TimerGuardian {
   triggerFocusReminder() {
     this.voice.play('alert');
     const nick = getNick();
-    const msg = `Cảnh báo Focus Guardian: Bạn đã làm việc liên tục 2 giờ! Hãy vươn vai, uống nước và để mắt nghỉ 5 phút nhé ${nick}.`;
+    const msg = `Focus Guardian Alert: You have been grinding for 2 hours straight! Stretch out, hydrate, and rest your eyes for 5 minutes, ${nick}.`;
     this.panel.say({
       kind: 'alert',
       face: 'calm',
       badge: 'FOCUS GUARDIAN',
       line: msg,
       hold: 12000,
-      actions: [{ id: 'rest', label: 'Nghỉ 5 phút', primary: true }],
+      actions: [{ id: 'rest', label: 'Rest 5 Mins', primary: true }],
       onAction: () => this.panel.hide()
     });
     this.voice.speakCyberpunk?.(msg);

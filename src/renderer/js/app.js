@@ -228,11 +228,24 @@ async function boot() {
     resetInactivity();
     if (chip.visible) chip.wake();
     if (mask.visible) mask.wake();
-    capri.forceRestoreInteraction();
-    capri.wake();
-    panel.forceRestore();
-    if (!panel.visible) {
-      await chat.start();
+    try { capri.forceRestoreInteraction(); } catch {}
+    try { capri.wake(); } catch {}
+    try { panel.forceRestore(); } catch {}
+    try {
+      if (typeof panel.openPanel === 'function') {
+        panel.openPanel();
+      } else {
+        panel.show();
+      }
+    } catch (e) {
+      console.error('[app] openPanel err:', e);
+    }
+    if (!chat.open) {
+      try {
+        await chat.start();
+      } catch (err) {
+        console.error('[app] chat.start err:', err);
+      }
     } else {
       panel.chatInput?.focus();
       host.setFocusable(true);
@@ -263,11 +276,12 @@ async function boot() {
 
     if (chip.visible && chip.contains(e.clientX, e.clientY, 8)) {
       chipDrag = {
-        startX: e.clientX,
-        startY: e.clientY,
+        startX: e.screenX,
+        startY: e.screenY,
         origX: chip.x,
         origY: chip.y,
         isDragging: false,
+        downTime: Date.now(),
       };
       setInteractive(true);
     }
@@ -286,11 +300,14 @@ async function boot() {
     mouse = { x: e.clientX, y: e.clientY };
 
     if (chipDrag) {
-      const dx = e.clientX - chipDrag.startX;
-      const dy = e.clientY - chipDrag.startY;
-      if (!chipDrag.isDragging && Math.hypot(dx, dy) > 4) {
+      const dx = e.screenX - chipDrag.startX;
+      const dy = e.screenY - chipDrag.startY;
+      if (!chipDrag.isDragging && Math.hypot(dx, dy) > 8) {
         chipDrag.isDragging = true;
         setInteractive(true);
+        if (capri && typeof capri.perform === 'function' && !capri.busy) {
+          try { capri.perform('dangle'); } catch {}
+        }
       }
       if (chipDrag.isDragging) {
         const newX = Math.max(0, Math.min(innerWidth - chip.w, chipDrag.origX + dx));
@@ -318,7 +335,13 @@ async function boot() {
         refreshHit();
         return;
       }
-      comeOut();
+      // Click without drag (<= 8px): immediately toggle panel
+      if (panel.visible) {
+        panel.hide();
+        chat.close();
+      } else {
+        comeOut();
+      }
       return;
     }
   });
@@ -403,6 +426,7 @@ async function boot() {
   if (initialUserAvatar) {
     panel.setUserAvatar(initialUserAvatar);
   }
+  panel.bindChat(chat);
   panel.bindChip(chip);
   chip.bindVoice(voice);
   chip.bindChat(chat);
@@ -415,6 +439,15 @@ async function boot() {
     refreshHit();
   };
 
+  window.addEventListener('capri:toggle-chat', () => {
+    if (panel.visible) {
+      panel.hide();
+      chat.close();
+    } else {
+      comeOut();
+    }
+  });
+
   // Voice Input & "Hey Capri" Wake Word engine
   const voiceInput = new VoiceInput({
     host, capri, panel, voice, brain, player, chat, fx, chip,
@@ -425,15 +458,16 @@ async function boot() {
   chat.voiceInput = voiceInput;
   chip.bindVoiceInput(voiceInput);
   chip.bindPanel(panel);
+  chip.bindCapri(capri);
   voiceInput.setWakeWordEnabled(config.wakeWord ?? true);
   voiceInput.onWake = () => {
     chip.wake();
-    chip.setStatusBadge('Đang lắng nghe...', 'listen', 5000);
+    chip.setStatusBadge('Listening...', 'listen', 5000);
     voice.play('wake');
   };
   window.addEventListener('capri:wake', () => {
     chip.wake();
-    chip.setStatusBadge('Đang lắng nghe...', 'listen', 5000);
+    chip.setStatusBadge('Listening...', 'listen', 5000);
   });
 
   // Cyberpunk Settings Deck
@@ -701,7 +735,11 @@ async function boot() {
     const t = brain.t;
     switch (cmd.name) {
       case 'teleport':
-        capri.teleport(capri.spot('random'));
+        if (panel && panel.visible) {
+          capri.teleport(capri.spot('random'));
+        } else {
+          chip.teleport?.();
+        }
         break;
       case 'status':
         brain.status();
@@ -710,11 +748,15 @@ async function boot() {
         guide.menu();
         break;
       case 'chat': // "Talk to her" in her menu
-        if (capri.stowed || capri.dormant) {
-          host.setConfig({ visible: true });
+        await comeOut();
+        break;
+      case 'toggle-chat':
+        if (panel && panel.visible) {
+          panel.hide();
+          chat.close();
+        } else {
           await comeOut();
         }
-        chat.start();
         break;
       case 'report': // "Mission report" in her menu
         if (capri.stowed || capri.dormant) {
@@ -897,8 +939,7 @@ async function playSmartGreeting(voice, chip, panel, brain) {
   if (wav) {
     setTimeout(async () => {
       await voice.playSoundFile(wav);
-      const isVi = (brain.lang || 'vi') === 'vi';
-      const msg = isVi ? textVi : textEn;
+      const msg = textEn;
       if (chip?.setStatusBadge) {
         chip.setStatusBadge(msg, 'info', 7000);
       }

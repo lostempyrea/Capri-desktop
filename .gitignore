@@ -33,6 +33,7 @@ graphify-out/
 .env.*
 !.env.example
 config.json
+!config.example.json
 chat-history.json
 user-profile.json
 me.md

@@ -28,6 +28,7 @@ const {
 const ollama = require('./ollama');
 const apps = require('./apps');
 const music = require('./music');
+const configStore = require('./config-store');
 
 let voiceLib = null;
 try {
@@ -57,10 +58,26 @@ class DiscordBridge {
 
   loadConfig() {
     if (ollama.loadEnv) ollama.loadEnv();
-    this.token = process.env.DISCORD_BOT_TOKEN || '';
+    let token = process.env.DISCORD_BOT_TOKEN || '';
+    let allowed = process.env.DISCORD_ALLOWED_USER_ID || process.env.DISCORD_USER_ID || '';
+    try {
+      const cfg = configStore.load();
+      if (cfg?.discordToken) token = cfg.discordToken;
+      if (cfg?.discordUserId) allowed = cfg.discordUserId;
+    } catch {}
+    this.token = token;
     this.clientId = process.env.DISCORD_CLIENT_ID || '';
-    this.allowedUser = process.env.DISCORD_ALLOWED_USER_ID || '';
+    this.allowedUser = allowed;
     this.prefix = process.env.DISCORD_PREFIX || 'c!';
+  }
+
+  async restart(newToken = null) {
+    if (newToken) {
+      this.token = newToken;
+    }
+    console.log('[discord] Restarting Capri Discord bridge...');
+    await this.stop();
+    return await this.start();
   }
 
   status() {
@@ -145,7 +162,7 @@ class DiscordBridge {
     client.on('interactionCreate', async (interaction) => {
       if (!interaction.isChatInputCommand()) return;
       if (this.allowedUser && interaction.user.id !== this.allowedUser) {
-        return interaction.reply({ content: '🚫 Bạn không có quyền điều khiển Capri!', ephemeral: true });
+        return interaction.reply({ content: '🚫 You do not have permission to control Capri!', ephemeral: true });
       }
 
       await this.handleSlashCommand(interaction);
@@ -245,33 +262,41 @@ class DiscordBridge {
   }
 
   stopVoice() {
-    if (this.idleTimer) {
-      clearTimeout(this.idleTimer);
-      this.idleTimer = null;
-    }
-    this.queue = [];
-    this.currentTrack = null;
-
-    if (this.audioPlayer) {
-      try { this.audioPlayer.stop(); } catch {}
-      this.audioPlayer = null;
-    }
-
-    if (this.voiceConnection) {
-      try { this.voiceConnection.destroy(); } catch {}
-      this.voiceConnection = null;
-    }
-
-    this.updateActivity(null, false);
     try {
-      const overlay = this.getOverlay();
-      if (overlay && !overlay.isDestroyed?.() && !overlay.webContents?.isDestroyed?.()) {
-        overlay.webContents.send('capri:music:stopped');
+      if (this.idleTimer) {
+        clearTimeout(this.idleTimer);
+        this.idleTimer = null;
       }
-    } catch {}
-    try {
-      this.sendMusicCommand({ action: 'stopped' });
-    } catch {}
+      this.queue = [];
+      this.currentTrack = null;
+
+      if (this.audioPlayer) {
+        try { this.audioPlayer.stop(); } catch {}
+        this.audioPlayer = null;
+      }
+
+      if (this.voiceConnection) {
+        try { this.voiceConnection.destroy(); } catch {}
+        this.voiceConnection = null;
+      }
+
+      try {
+        this.updateActivity(null, false);
+      } catch {}
+
+      try {
+        const overlay = this.getOverlay();
+        if (overlay && !overlay.isDestroyed?.() && !overlay.webContents?.isDestroyed?.()) {
+          overlay.webContents.send('capri:music:stopped');
+        }
+      } catch {}
+
+      try {
+        this.sendMusicCommand({ action: 'stopped' });
+      } catch {}
+    } catch (err) {
+      console.warn('[discord] stopVoice cleanup:', err.message);
+    }
   }
 
   async playTrackStream(track, voiceChannel, targetChannel) {
@@ -307,7 +332,7 @@ class DiscordBridge {
     }
 
     if (targetChannel?.send) {
-      targetChannel.send(`🎵 **NOW PLAYING:** [${track.title}](${track.originalUrl})\n⏱️ Thời lượng: ${track.duration || 'N/A'} — Nghệ sĩ: ${track.author}`).catch(() => {});
+      targetChannel.send(`🎵 **NOW PLAYING:** [${track.title}](${track.originalUrl})\n⏱️ Duration: ${track.duration || 'N/A'} — Artist: ${track.author}`).catch(() => {});
     }
   }
 
@@ -333,107 +358,173 @@ class DiscordBridge {
     } catch {}
   }
 
-  // Resolve voice channel of a member robustly
-  async getMemberVoiceChannel(guild, member, userId) {
-    if (member?.voice?.channel) return member.voice.channel;
-    if (!guild || !userId) return null;
+  // Dynamic multi-guild target voice channel resolution
+  async resolveTargetVoiceChannel({ userId = null, member = null, guild = null } = {}) {
+    if (!this.client) return null;
 
-    try {
-      const fetched = await guild.members.fetch(userId);
-      if (fetched?.voice?.channel) return fetched.voice.channel;
-    } catch {}
+    // 1. Direct member voice channel if provided and active
+    if (member?.voice?.channel) {
+      return member.voice.channel;
+    }
 
-    for (const channel of guild.channels.cache.values()) {
-      if (channel && channel.isVoiceBased && channel.isVoiceBased() && channel.members.has(userId)) {
-        return channel;
+    // 2. Identify target user ID
+    let targetId = userId || member?.id || this.allowedUser;
+    if (!targetId) {
+      try {
+        const cfg = configStore.load();
+        targetId = cfg?.discordUserId || '';
+      } catch {}
+    }
+
+    // 3. Scan specified guild if provided
+    if (guild && targetId) {
+      try {
+        const m = await guild.members.fetch(targetId).catch(() => null);
+        if (m?.voice?.channel) return m.voice.channel;
+      } catch {}
+      for (const channel of guild.channels.cache.values()) {
+        if (channel?.isVoiceBased && channel.isVoiceBased() && channel.members.has(targetId)) {
+          return channel;
+        }
       }
     }
-    return null;
+
+    // 4. Scan all guilds in client.guilds.cache for this user
+    if (this.client.guilds?.cache && targetId) {
+      const targetLower = String(targetId).toLowerCase();
+      for (const g of this.client.guilds.cache.values()) {
+        try {
+          const m = await g.members.fetch(targetId).catch(() => null);
+          if (m?.voice?.channel) return m.voice.channel;
+        } catch {}
+        for (const channel of g.channels.cache.values()) {
+          if (channel?.isVoiceBased && channel.isVoiceBased()) {
+            for (const mem of channel.members.values()) {
+              if (
+                mem.id === targetId ||
+                mem.user.id === targetId ||
+                mem.user.username.toLowerCase() === targetLower ||
+                mem.displayName.toLowerCase() === targetLower
+              ) {
+                return channel;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // 5. Fallback: Find voice channel across all guilds with highest human (non-bot) member count
+    let bestChannel = null;
+    let maxHumans = 0;
+    if (this.client.guilds?.cache) {
+      for (const g of this.client.guilds.cache.values()) {
+        for (const channel of g.channels.cache.values()) {
+          if (channel?.isVoiceBased && channel.isVoiceBased()) {
+            const nonBots = channel.members.filter((m) => !m.user.bot).size;
+            if (nonBots > maxHumans) {
+              maxHumans = nonBots;
+              bestChannel = channel;
+            }
+          }
+        }
+      }
+    }
+
+    return bestChannel;
+  }
+
+  // Helper to connect/reconnect to a voice channel, destroying stale connection if channel changed
+  connectToVoiceChannel(voiceChannel) {
+    if (!voiceLib || !voiceChannel) return null;
+    let connection = this.voiceConnection;
+    const isDead = !connection || connection.state.status === voiceLib.VoiceConnectionStatus.Destroyed;
+
+    if (isDead || connection.joinConfig.channelId !== voiceChannel.id) {
+      if (connection && !isDead) {
+        try { connection.destroy(); } catch {}
+      }
+      connection = voiceLib.joinVoiceChannel({
+        channelId: voiceChannel.id,
+        guildId: voiceChannel.guild.id,
+        adapterCreator: voiceChannel.guild.voiceAdapterCreator,
+        selfDeaf: false,
+      });
+      this.voiceConnection = connection;
+
+      connection.on('error', (err) => {
+        console.warn('[discord] voice connection error:', err.message);
+      });
+
+      connection.on(voiceLib.VoiceConnectionStatus.Disconnected, async () => {
+        try {
+          await Promise.race([
+            voiceLib.entersState(connection, voiceLib.VoiceConnectionStatus.Signalling, 5_000),
+            voiceLib.entersState(connection, voiceLib.VoiceConnectionStatus.Connecting, 5_000),
+          ]);
+        } catch {
+          this.stopVoice();
+        }
+      });
+    }
+
+    return connection;
+  }
+
+  // Resolve voice channel of a member robustly across current guild and all known guilds
+  async getMemberVoiceChannel(guild, member, userId) {
+    return await this.resolveTargetVoiceChannel({ userId, member, guild });
   }
 
   // Auto-find active voice channel across guilds (for Capri desktop chat commands)
-  async findActiveVoiceChannel() {
-    if (!this.client) return null;
-    const allowed = this.allowedUser;
-
-    // 1. Search for allowed user if specified
-    if (allowed) {
-      for (const guild of this.client.guilds.cache.values()) {
-        try {
-          const member = await guild.members.fetch(allowed);
-          if (member?.voice?.channel) return member.voice.channel;
-        } catch {}
-        for (const channel of guild.channels.cache.values()) {
-          if (channel.isVoiceBased && channel.isVoiceBased() && channel.members.has(allowed)) {
-            return channel;
-          }
-        }
-      }
-    }
-
-    // 2. Search for any voice channel that has human users
-    for (const guild of this.client.guilds.cache.values()) {
-      for (const channel of guild.channels.cache.values()) {
-        if (channel.isVoiceBased && channel.isVoiceBased()) {
-          const nonBots = channel.members.filter((m) => !m.user.bot);
-          if (nonBots.size > 0) {
-            return channel;
-          }
-        }
-      }
-    }
-    return null;
+  async findActiveVoiceChannel(overrideUser = null) {
+    return await this.resolveTargetVoiceChannel({ userId: overrideUser });
   }
 
   // Handle commands sent directly from Capri Desktop's "Talk to her" chat window
   async handleDesktopCommand({ command, args, song }) {
     if (!this.running || !this.client) {
-      return { ok: false, message: 'Discord Bot chưa được bật hoặc chưa kết nối!' };
+      return { ok: false, message: 'Discord bot is not enabled or not connected.' };
     }
 
     const cmd = String(command || 'play').toLowerCase();
 
     if (cmd === 'stop' || cmd === 'leave' || cmd === 'dc') {
       this.stopVoice();
-      return { ok: true, action: 'leave', message: 'Đã dừng phát và rời khỏi phòng thoại Discord rồi nhé bồ tèo!' };
+      return { ok: true, action: 'leave', message: 'Playback stopped and left Discord voice channel, choom!' };
     }
 
     if (cmd === 'skip' || cmd === 'next') {
       const nextTrack = this.skipTrack();
       if (nextTrack) {
-        return { ok: true, action: 'skip', title: nextTrack.title, message: `Đã chuyển sang bài: **${nextTrack.title}** trên Discord!` };
+        return { ok: true, action: 'skip', title: nextTrack.title, message: `Skipped to: **${nextTrack.title}** on Discord!` };
       } else {
-        return { ok: true, action: 'stop', message: 'Hàng đợi trên Discord đã hết, Capri đã rời phòng thoại.' };
+        return { ok: true, action: 'stop', message: 'Discord queue finished. Capri left the voice channel.' };
       }
     }
 
     if (cmd === 'join') {
-      const channel = await this.findActiveVoiceChannel();
+      const channel = await this.resolveTargetVoiceChannel();
       if (!channel) {
-        return { ok: false, message: 'Không tìm thấy phòng thoại nào có người trên Discord để tham gia!' };
+        return { ok: false, message: 'No active Discord voice channel with members found to join.' };
       }
       if (!voiceLib) {
-        return { ok: false, message: 'Thư viện Voice chưa được kích hoạt trên hệ thống!' };
+        return { ok: false, message: 'Voice library is not active on this system.' };
       }
-      const connection = voiceLib.joinVoiceChannel({
-        channelId: channel.id,
-        guildId: channel.guild.id,
-        adapterCreator: channel.guild.voiceAdapterCreator,
-        selfDeaf: false,
-      });
-      this.voiceConnection = connection;
-      return { ok: true, action: 'join', channelName: channel.name, message: `Đã kết nối vào phòng thoại **${channel.name}** trên Discord rồi nhé!` };
+
+      this.connectToVoiceChannel(channel);
+      return { ok: true, action: 'join', channelName: channel.name, message: `Connected to voice channel **${channel.name}** on Discord!` };
     }
 
     // Default: play
     const query = song || args;
     if (!query) {
-      return { ok: false, message: 'Cho xin tên bài hát hoặc link YouTube để phát trên Discord nhé bạn hiền!' };
+      return { ok: false, message: 'Provide a song title or YouTube link to stream on Discord!' };
     }
 
-    const channel = await this.findActiveVoiceChannel();
+    const channel = await this.resolveTargetVoiceChannel();
     if (!channel) {
-      return { ok: false, message: 'Bạn chưa vào phòng thoại (Voice Channel) nào trên Discord cả bồ tèo!' };
+      return { ok: false, message: 'You are not currently in any Discord voice channel, partner!' };
     }
 
     try {
@@ -446,9 +537,10 @@ class DiscordBridge {
           channelName: channel.name,
           trackTitle: track.title,
           queuePos: this.queue.length,
-          message: `Đã thêm vào hàng đợi vị trí #${this.queue.length}: **${track.title}** trên phòng **${channel.name}**!`,
+          message: `Added track to queue position #${this.queue.length}: **${track.title}** in **${channel.name}**!`,
         };
       } else {
+        this.connectToVoiceChannel(channel);
         await this.playTrackStream(track, channel, null);
         return {
           ok: true,
@@ -456,11 +548,11 @@ class DiscordBridge {
           channelName: channel.name,
           trackTitle: track.title,
           trackUrl: track.originalUrl,
-          message: `Đã nhảy vào kênh **${channel.name}** trên Discord và đang phát **${track.title}** cho cậu rồi đấy!`,
+          message: `Joined voice channel **${channel.name}** on Discord and streaming **${track.title}** now!`,
         };
       }
     } catch (err) {
-      return { ok: false, message: `Lỗi khi phát nhạc Discord: ${err.message}` };
+      return { ok: false, message: `Discord playback error: ${err.message}` };
     }
   }
 
@@ -472,33 +564,33 @@ class DiscordBridge {
     const commands = [
       new SlashCommandBuilder()
         .setName('join')
-        .setDescription('Mời Capri vào phòng thoại (Voice Channel) bạn đang tham gia'),
+        .setDescription('Invite Capri into the Voice Channel you are currently in'),
 
       new SlashCommandBuilder()
         .setName('leave')
-        .setDescription('Mời Capri rời khỏi phòng thoại'),
+        .setDescription('Disconnect Capri from the Voice Channel'),
 
       new SlashCommandBuilder()
         .setName('play')
-        .setDescription('Tìm và phát nhạc trực tiếp trên desktop Capri (và Voice channel)')
+        .setDescription('Find and play music on desktop Capri and Discord Voice Channel')
         .addStringOption((opt) =>
-          opt.setName('song').setDescription('Tên bài hát hoặc link YouTube/SoundCloud').setRequired(true)
+          opt.setName('song').setDescription('Song title or YouTube/SoundCloud URL').setRequired(true)
         ),
 
       new SlashCommandBuilder()
         .setName('skip')
-        .setDescription('Bỏ qua bài hát hiện tại để phát bài tiếp theo trong hàng đợi'),
+        .setDescription('Skip current song and play next track in queue'),
 
       new SlashCommandBuilder()
         .setName('queue')
-        .setDescription('Xem danh sách các bài hát đang chờ trong hàng đợi'),
+        .setDescription('View queued tracks'),
 
       new SlashCommandBuilder()
         .setName('open')
-        .setDescription('Mở nhạc bằng ứng dụng ngoài (Spotify, YouTube, SoundCloud) trên PC')
+        .setDescription('Open music using an external app (Spotify, YouTube, SoundCloud) on PC')
         .addStringOption((opt) =>
           opt.setName('app')
-            .setDescription('Ứng dụng muốn mở')
+            .setDescription('Target application')
             .setRequired(true)
             .addChoices(
               { name: 'Spotify', value: 'spotify' },
@@ -508,30 +600,30 @@ class DiscordBridge {
             )
         )
         .addStringOption((opt) =>
-          opt.setName('query').setDescription('Từ khóa bài hát / ca sĩ').setRequired(true)
+          opt.setName('query').setDescription('Song query or artist name').setRequired(true)
         ),
 
       new SlashCommandBuilder()
         .setName('music')
-        .setDescription('Điều khiển trình phát nhạc của Capri')
+        .setDescription('Control Capri desktop music player')
         .addStringOption((opt) =>
           opt.setName('action')
-            .setDescription('Thao tác điều khiển')
+            .setDescription('Playback control action')
             .setRequired(true)
             .addChoices(
-              { name: 'Tạm dừng / Tiếp tục (Toggle)', value: 'toggle' },
-              { name: 'Bài tiếp theo (Next)', value: 'next' },
-              { name: 'Bài trước (Previous)', value: 'prev' },
-              { name: 'Đổi đài Cyberpunk Radio', value: 'radio' },
-              { name: 'Kiểm tra trạng thái', value: 'status' }
+              { name: 'Play / Pause (Toggle)', value: 'toggle' },
+              { name: 'Next Track', value: 'next' },
+              { name: 'Previous Track', value: 'prev' },
+              { name: 'Switch Cyberpunk Radio', value: 'radio' },
+              { name: 'Check Player Status', value: 'status' }
             )
         ),
 
       new SlashCommandBuilder()
         .setName('capri')
-        .setDescription('Trò chuyện hoặc gửi thông điệp hiển thị lên màn hình desktop của Capri')
+        .setDescription('Chat with Capri or display a message on her desktop HUD')
         .addStringOption((opt) =>
-          opt.setName('message').setDescription('Lời nhắn hoặc câu hỏi cho Capri').setRequired(true)
+          opt.setName('message').setDescription('Message or question for Capri').setRequired(true)
         ),
     ].map((cmd) => cmd.toJSON());
 
@@ -565,15 +657,15 @@ class DiscordBridge {
     } else if (cmd === 'leave' || cmd === 'l' || cmd === 'dc' || cmd === 'disconnect') {
       await this.executeLeave(message.channel);
     } else if (cmd === 'play' || cmd === 'p') {
-      if (!args) return message.reply('Cho xin tên bài hát hoặc link YouTube đi bồ tèo! Ví dụ: `c!p I Really Want to Stay at Your House`');
+      if (!args) return message.reply('Please provide a song title or YouTube link! Example: `c!p I Really Want to Stay at Your House`');
       const voiceChannel = await this.getMemberVoiceChannel(message.guild, message.member, message.author.id);
       await this.executePlay(message.channel, args, voiceChannel);
     } else if (cmd === 'skip' || cmd === 'next' || cmd === 'fs') {
       const next = this.skipTrack();
       if (next) {
-        message.reply(`⏭️ Đã bỏ qua bài hiện tại! Tiếp theo: **${next.title}**`);
+        message.reply(`⏭️ Skipped current track! Next up: **${next.title}**`);
       } else {
-        message.reply('⏹️ Hàng đợi đã hết, đã dừng phát nhạc!');
+        message.reply('⏹️ Queue empty, stopped audio playback!');
       }
     } else if (cmd === 'queue' || cmd === 'q') {
       this.executeShowQueue(message.channel);
@@ -596,22 +688,22 @@ class DiscordBridge {
       const act = parts[1]?.toLowerCase() || 'toggle';
       await this.executeMusicControl(message.channel, act, parts[2]);
     } else if (cmd === 'capri' || cmd === 'chat') {
-      if (!args) return message.reply('Muốn nói gì với tôi nào bạn hiền?');
+      if (!args) return message.reply('What is on your mind, choom?');
       await this.executeCapriChat(message.channel, args, message.author.username);
     } else if (cmd === 'help') {
       const p = this.prefix || 'c!';
       return message.reply(
         [
-          '✨ **DANH SÁCH LỆNH CAPRI DISCORD:**',
-          '• `c!p <tên bài>` : Phát nhạc trực tiếp trên Desktop & Voice Channel',
-          `• \`${p}skip\` (hoặc \`c!fs\`) : Chuyển bài trong hàng đợi`,
-          `• \`${p}queue\` (hoặc \`c!q\`) : Xem danh sách hàng đợi`,
-          `• \`${p}join\` (hoặc \`c!j\`, \`/join\`) : Mời Capri vào Voice Channel`,
-          `• \`${p}leave\` (hoặc \`c!dc\`, \`/leave\`) : Mời Capri rời khỏi phòng thoại`,
-          `• \`${p}pause\` / \`${p}resume\` / \`${p}stop\` : Tạm dừng / Tiếp tục / Dừng phát nhạc`,
-          `• \`${p}radio\` : Đổi các đài Cyberpunk Radio 24/7`,
-          `• \`${p}open <spotify|youtube|soundcloud> <bài>\` : Mở nhạc bằng app trên máy tính`,
-          `• \`${p}capri <tin nhắn>\` : Trò chuyện cùng Capri trên màn hình Desktop`,
+          '✨ **CAPRI DISCORD BOT COMMANDS:**',
+          `• \`${p}p <song>\` : Play music on Desktop & Discord Voice Channel`,
+          `• \`${p}skip\` (or \`${p}fs\`) : Skip current playing song`,
+          `• \`${p}queue\` (or \`${p}q\`) : View current track queue`,
+          `• \`${p}join\` (or \`${p}j\`, \`/join\`) : Summon Capri to your Voice Channel`,
+          `• \`${p}leave\` (or \`${p}dc\`, \`/leave\`) : Disconnect Capri from Voice Channel`,
+          `• \`${p}pause\` / \`${p}resume\` / \`${p}stop\` : Playback controls`,
+          `• \`${p}radio\` : Switch to next Cyberpunk Radio station`,
+          `• \`${p}open <spotify|youtube|soundcloud> <song>\` : Launch app on host PC`,
+          `• \`${p}capri <message>\` : Chat with Capri on desktop HUD`,
         ].join('\n')
       );
     }
@@ -636,9 +728,9 @@ class DiscordBridge {
       await interaction.deferReply();
       const next = this.skipTrack();
       if (next) {
-        await interaction.editReply(`⏭️ Đã bỏ qua bài hiện tại! Tiếp theo: **${next.title}**`);
+        await interaction.editReply(`⏭️ Skipped current track! Next up: **${next.title}**`);
       } else {
-        await interaction.editReply('⏹️ Hàng đợi đã hết, đã dừng phát nhạc!');
+        await interaction.editReply('⏹️ Queue empty, stopped audio playback!');
       }
     } else if (commandName === 'queue') {
       await interaction.deferReply();
@@ -662,15 +754,15 @@ class DiscordBridge {
   executeShowQueue(target, isInteraction = false) {
     const reply = (content) => (isInteraction ? target.editReply(content) : target.send(content));
     const nowPlaying = this.currentTrack
-      ? `▶️ **Đang phát:** [${this.currentTrack.title}](${this.currentTrack.originalUrl})`
-      : '⏸️ Không có bài hát nào đang phát.';
+      ? `▶️ **Now Playing:** [${this.currentTrack.title}](${this.currentTrack.originalUrl})`
+      : '⏸️ No track is currently playing.';
 
     if (this.queue.length === 0) {
-      return reply(`${nowPlaying}\n📋 Hàng đợi đang trống.`);
+      return reply(`${nowPlaying}\n📋 Queue is empty.`);
     }
 
     const lines = this.queue.slice(0, 10).map((item, idx) => `${idx + 1}. [${item.track.title}](${item.track.originalUrl}) (${item.track.duration || 'N/A'})`);
-    return reply(`${nowPlaying}\n📋 **HÀNG ĐỢI (${this.queue.length} bài):**\n${lines.join('\n')}`);
+    return reply(`${nowPlaying}\n📋 **QUEUE (${this.queue.length} tracks):**\n${lines.join('\n')}`);
   }
 
   // Execute /join or !join
@@ -678,53 +770,32 @@ class DiscordBridge {
     const reply = (content) => (isInteraction ? target.editReply(content) : target.send(content));
 
     if (!guild) {
-      return reply('❌ Lệnh này chỉ dùng được bên trong Server Discord, không thể dùng trong tin nhắn riêng DM!');
+      return reply('❌ This command can only be used inside a Discord server, not in DMs!');
     }
 
-    const voiceChannel = await this.getMemberVoiceChannel(guild, member, userId);
+    let voiceChannel = await this.resolveTargetVoiceChannel({ userId, member, guild });
     if (!voiceChannel) {
-      return reply('❌ Bồ tèo chưa vào phòng thoại nào cả! Hãy tham gia một Voice Channel trên Discord rồi gõ `c!join` hoặc `/join` nhé bồ tèo!');
+      return reply('❌ You are not in any voice channel! Please join a Discord Voice Channel and try again.');
     }
 
     if (!voiceLib) {
-      return reply('❌ Thư viện âm thanh Voice (@discordjs/voice) chưa sẵn sàng!');
+      return reply('❌ Voice library (@discordjs/voice) is not ready on this system!');
     }
 
     try {
-      const connection = voiceLib.joinVoiceChannel({
-        channelId: voiceChannel.id,
-        guildId: guild.id,
-        adapterCreator: guild.voiceAdapterCreator,
-        selfDeaf: false,
-      });
-      this.voiceConnection = connection;
-
-      connection.on('error', (err) => {
-        console.warn('[discord] voice connection error:', err.message);
-      });
-
-      connection.on(voiceLib.VoiceConnectionStatus.Disconnected, async () => {
-        try {
-          await Promise.race([
-            voiceLib.entersState(connection, voiceLib.VoiceConnectionStatus.Signalling, 5_000),
-            voiceLib.entersState(connection, voiceLib.VoiceConnectionStatus.Connecting, 5_000),
-          ]);
-        } catch {
-          this.stopVoice();
-        }
-      });
+      this.connectToVoiceChannel(voiceChannel);
 
       // Notify desktop overlay
       const overlay = this.getOverlay();
       overlay?.webContents.send('capri:discord', {
         action: 'voice_join',
-        text: `Capri đã vào Voice Channel: ${voiceChannel.name}`,
+        text: `Capri joined Voice Channel: ${voiceChannel.name}`,
       });
 
-      return reply(`🔊 **Đã kết nối vào phòng thoại:** \`${voiceChannel.name}\`!\n🎧 Gõ \`c!p <tên bài>\` hoặc \`/play <tên bài>\` để tôi phát nhạc cùng bạn hiền nhé!`);
+      return reply(`🔊 **Connected to Voice Channel:** \`${voiceChannel.name}\`!\n🎧 Type \`c!p <song>\` or \`/play <song>\` to spin tracks together!`);
     } catch (err) {
       console.error('[discord] join voice error:', err);
-      return reply(`❌ Lỗi khi tham gia phòng thoại: ${err.message}`);
+      return reply(`❌ Error joining voice channel: ${err.message}`);
     }
   }
 
@@ -733,9 +804,9 @@ class DiscordBridge {
     const reply = (content) => (isInteraction ? target.editReply(content) : target.send(content));
     if (this.voiceConnection) {
       this.stopVoice();
-      return reply('👋 Đã rời phòng thoại! Hẹn gặp lại bạn hiền trên Night City!');
+      return reply('👋 Left voice channel! Catch you later in Night City, choom!');
     }
-    return reply('⚠️ Hiện tại Capri chưa ở trong phòng thoại nào cả bạn hiền!');
+    return reply('⚠️ Capri is not currently in any voice channel.');
   }
 
   // Execute /play
@@ -744,18 +815,23 @@ class DiscordBridge {
 
     try {
       if (isInteraction) {
-        await target.editReply(`🔍 Đang quét sóng tìm kiếm: **${songQuery}**...`);
+        await target.editReply(`🔍 Scanning frequencies for: **${songQuery}**...`);
       } else {
-        await target.send(`🔍 Đang quét sóng tìm kiếm: **${songQuery}**...`);
+        await target.send(`🔍 Scanning frequencies for: **${songQuery}**...`);
       }
 
       const track = await music.resolveTrack(songQuery, this.port);
+
+      // Auto-resolve voice channel if not provided
+      if (!voiceChannel) {
+        voiceChannel = await this.findActiveVoiceChannel();
+      }
 
       // If already playing in voice channel, add to queue
       if (this.currentTrack && voiceChannel && this.voiceConnection) {
         this.queue.push({ track, voiceChannel, textChannel: target });
         return reply(
-          `📋 **Đã thêm vào hàng đợi (#${this.queue.length}):** [${track.title}](${track.originalUrl})\n⏱️ Thời lượng: ${track.duration || 'N/A'} — Nghệ sĩ: ${track.author}`
+          `📋 **Added to queue (#${this.queue.length}):** [${track.title}](${track.originalUrl})\n⏱️ Duration: ${track.duration || 'N/A'} — Artist: ${track.author}`
         );
       }
 
@@ -765,8 +841,9 @@ class DiscordBridge {
 
       if (voiceChannel && voiceLib) {
         try {
+          this.connectToVoiceChannel(voiceChannel);
           await this.playTrackStream(track, voiceChannel, null);
-          voiceMsg = ` (và đang phát trong Voice Channel **${voiceChannel.name}**)`;
+          voiceMsg = ` (and broadcasting in Voice Channel **${voiceChannel.name}**)`;
         } catch (vErr) {
           console.warn('[discord] voice channel play error:', vErr.message);
         }
@@ -777,15 +854,15 @@ class DiscordBridge {
       overlay?.webContents.send('capri:discord', {
         action: 'play',
         title: track.title,
-        text: `Discord yêu cầu phát: ${track.title}`,
+        text: `Discord playback requested: ${track.title}`,
       });
 
       return reply(
-        `🎵 **NOW PLAYING:** [${track.title}](${track.originalUrl})\n⏱️ Thời lượng: ${track.duration || 'N/A'} — Nghệ sĩ: ${track.author}\n✨ Đã phát trực tiếp trên desktop Capri${voiceMsg}!`
+        `🎵 **NOW PLAYING:** [${track.title}](${track.originalUrl})\n⏱️ Duration: ${track.duration || 'N/A'} — Artist: ${track.author}\n✨ Streaming live on Capri's desktop${voiceMsg}!`
       );
     } catch (err) {
       console.error('[discord] play error:', err);
-      return reply(`❌ Lỗi khi tìm/phát nhạc: ${err.message}`);
+      return reply(`❌ Error playing audio: ${err.message}`);
     }
   }
 
@@ -796,13 +873,13 @@ class DiscordBridge {
     try {
       if (appName === 'spotify') {
         await apps.openSpotify(query);
-        return reply(`🟢 Đã kích hoạt **Spotify** trên máy tính với từ khóa: *${query || 'Trang chủ'}*!`);
+        return reply(`🟢 Launched **Spotify** on PC for query: *${query || 'Home'}*!`);
       } else {
         await apps.openWebMusic(appName, query);
-        return reply(`🌐 Đã mở **${appName.toUpperCase()}** trên trình duyệt với: *${query}*!`);
+        return reply(`🌐 Opened **${appName.toUpperCase()}** in browser for: *${query}*!`);
       }
     } catch (err) {
-      return reply(`❌ Không mở được ${appName}: ${err.message}`);
+      return reply(`❌ Failed to launch ${appName}: ${err.message}`);
     }
   }
 
@@ -819,14 +896,14 @@ class DiscordBridge {
     }
 
     const messages = {
-      toggle: '⏯️ Đã chuyển trạng thái Phát / Tạm dừng!',
-      next: '⏭️ Đã chuyển sang bài tiếp theo!',
-      prev: '⏮️ Đã lùi về bài trước!',
-      radio: '📻 Đã chuyển sang kênh Cyberpunk Radio tiếp theo!',
-      status: '📊 Kiểm tra trạng thái Capri Music Player.',
+      toggle: '⏯️ Toggled Play / Pause state!',
+      next: '⏭️ Skipped to next track!',
+      prev: '⏮️ Returned to previous track!',
+      radio: '📻 Switched to next Cyberpunk Radio station!',
+      status: '📊 Capri Music Player status checked.',
     };
 
-    return reply(messages[action] || `✅ Đã gửi lệnh [${action}] đến Capri!`);
+    return reply(messages[action] || `✅ Sent command [${action}] to Capri!`);
   }
 
   // Execute /capri chat
@@ -847,10 +924,10 @@ class DiscordBridge {
         {
           role: 'system',
           content: [
-            'Bạn là Capri, nhân cách kỹ thuật số từ Cyberpunk: Edgerunners sống trên desktop người dùng.',
-            'Tính cách: Ngông nghênh, tinh quái, lém lỉnh, ấm áp, xưng "tôi" và gọi người dùng là "tèo" hoặc "blue" (bạn hiền, cưng).',
-            `Người dùng Discord tên là ${senderName} vừa gửi tin nhắn cho bạn từ server Discord.`,
-            'BẮT BUỘC TRẢ LỜI HOÀN TOÀN BẰNG TIẾNG VIỆT tự nhiên, sắc sảo từ 1 đến 2 câu ngắn, không dùng emoji, không gạch đầu dòng.',
+            'You are Capri, a sharp digital construct from Cyberpunk: Edgerunners living on user desktop.',
+            'Personality: Witty, cyberpunk street-smart, playful, warm, addresses user as "choom", "partner", or "blue".',
+            `Discord user ${senderName} just sent you a message from the Discord server.`,
+            'Respond in 1-2 punchy, natural sentences in English. No markdown bullet points, no emojis.',
           ].join(' '),
         },
         { role: 'user', content: userMessage },
@@ -869,13 +946,13 @@ class DiscordBridge {
 
       return reply(`💬 **Capri:** ${cleanResponse}`);
     } catch {
-      return reply(`💬 **Capri:** Nhận được tín hiệu từ ${senderName} rồi nhé bồ tèo! Đang canh chừng desktop cho bạn đây.`);
+      return reply(`💬 **Capri:** Signal received loud and clear from ${senderName}! Holding down the desktop for you, choom.`);
     }
   }
 
   async shareFile(filePath) {
     if (!this.running || !this.client) {
-      return { ok: false, error: 'Discord bot không hoạt động hoặc chưa kết nối.' };
+      return { ok: false, error: 'Discord bot is not active or connected.' };
     }
     try {
       let targetChannel = this.lastTextChannel;
@@ -888,7 +965,7 @@ class DiscordBridge {
         }
       }
       if (!targetChannel) {
-        return { ok: false, error: 'Không tìm thấy kênh văn bản Discord khả dụng.' };
+        return { ok: false, error: 'No available Discord text channel found to share clip.' };
       }
       await targetChannel.send({
         content: '🎬 **Capri Instant Replay Clip Captured!**',

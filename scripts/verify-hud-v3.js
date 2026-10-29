@@ -94,7 +94,7 @@ test('settings-ui.js: 4 tabs, presets, clear glass, theme cards, clear history',
   assert(settingsJs.includes('settings-theme-cards'), 'Missing theme cards');
   assert(settingsJs.includes('cfg-active-model-display'), 'Missing active model display');
   assert(settingsJs.includes('cfg-clear-history-btn'), 'Missing clear history button');
-  assert(settingsJs.includes('https://github.com/mochiiwuff/capri-desktop/tree/main'), 'Missing GitHub repo link');
+  assert(settingsJs.includes('https://github.com/lostempyrea/Capri-desktop'), 'Missing GitHub repo link');
 });
 
 // 7. Styles: Universal theme tokens, clear glass, quick-input, user bubble

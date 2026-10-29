@@ -479,7 +479,70 @@ export const ACTS = {
       [2, { head: 0, mane: 0, bob: 0, arms: -0.42 }],
     ],
   },
+
+  leave: {
+    priority: 3,
+    fps: 15,
+    keys: [
+      [2, { head: 0.05, mane: -0.1, bob: 2, arms: -0.2, sy: 0.95 }],
+      [2, { head: 0.12, mane: -0.2, bob: 6, arms: -0.45, sy: 0.88, sx: 1.05 }],
+      [3, { head: 0.18, mane: -0.35, bob: 12, arms: -0.7, sy: 0.72, sx: 1.12, echo: [6, 0] }, 'fold'],
+      [3, { head: 0.1, mane: -0.45, bob: 18, arms: -0.85, sy: 0.45, sx: 0.8, smear: [0, 16], glitch: 0.2 }],
+      [2, { sy: 0.1, sx: 0.1, bob: 24, dissolve: 1 }],
+    ],
+  },
+
+  perch_leave: {
+    priority: 3,
+    fps: 15,
+    keys: [
+      [2, { head: 0.08, mane: -0.1, kickL: 0.2, kickR: 0.2, arms: -0.3 }],
+      [3, { head: 0.16, mane: -0.25, kickL: 0.4, kickR: 0.4, arms: -0.6, sy: 0.85 }],
+      [4, { head: 0.1, mane: -0.4, arms: -0.8, sy: 0.5, sx: 0.85, glitch: 0.2 }],
+      [3, { sy: 0.1, sx: 0.1, dissolve: 1 }],
+    ],
+  },
+
+  wake: {
+    priority: 3,
+    fps: 15,
+    keys: [
+      [1, { head: 0.22, mane: -0.15, bob: 6, arms: -0.36 }],
+      [2, { head: 0.06, mane: 0.1, bob: -2, smear: [0, -8], arms: -0.1, echo: [4, 0] }, 'jolt'],
+      [2, { head: -0.12, mane: 0.2, bob: -4, arms: 0.2, sy: 1.08, sx: 0.94 }],
+      [3, { head: 0.14, mane: 0.15, bob: 0, arms: 0.1, sy: 1.02, sx: 0.98 }],
+      [3, { head: -0.06, mane: 0.08, bob: 0, arms: 0 }],
+      [2, { head: 0, mane: 0, bob: 0, arms: 0 }],
+    ],
+  },
+
+  blink_glitch: {
+    priority: 2,
+    fps: 8,
+    keys: [
+      [1, { head: 0.02, mane: 0.08, echo: [6, -2], glitch: 0.3, smear: [-4, 0] }, 'glitch'],
+      [1, { head: -0.04, mane: 0.14, echo: [12, -3], glitch: 0.4, smear: [6, 0] }],
+      [1, { head: 0.02, mane: 0.06, echo: [4, -1], glitch: 0.15 }],
+      [1, { head: 0, mane: 0, echo: [0, 0], glitch: 0 }],
+    ],
+  },
+
+  blink: {
+    priority: 1,
+    fps: 8,
+    keys: [
+      [1, { head: 0.01 }],
+      [2, { head: 0.03 }],
+      [1, { head: 0 }],
+    ],
+  },
 };
+
+// Aliases for compatibility
+ACTS.cheer = ACTS.victory;
+ACTS.satellite = ACTS.uplink;
+ACTS.bolt = ACTS.zap;
+ACTS.idle = ACTS.stand;
 
 export class Player {
   constructor(name, { dir = 0, reach = 1, at = performance.now() } = {}) {

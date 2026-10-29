@@ -51,6 +51,7 @@ contextBridge.exposeInMainWorld('host', {
   discordStatus: () => ipcRenderer.invoke('discord:status'),
   discordToggle: () => ipcRenderer.invoke('discord:toggle'),
   discordCommand: (command, args, song) => ipcRenderer.invoke('discord:command', { command, args, song }),
+  restartDiscord: () => ipcRenderer.invoke('discord:restart'),
   onMusicStopped: on('capri:music:stopped'),
   transcribeAudio: (buffer, mimeType) => ipcRenderer.invoke('stt:transcribe', { buffer, mimeType }),
   onVoiceListen: on('capri:voice:listen'),

@@ -1,9 +1,9 @@
 {
   "name": "capri-desktop",
-  "version": "1.4.0-cyberpunk-edition",
+  "version": "1.5.0-cyberpunk-edition",
   "description": "Capri, the Project Capricorn construct, living on your desktop and narrating what Claude Code is doing.",
-  "author": "mochiiwuff",
-  "repository": "github:mochiiwuff/capri-desktop",
+  "author": "lostempyrea",
+  "repository": "github:lostempyrea/Capri-desktop",
   "main": "src/main/main.js",
   "private": true,
   "scripts": {

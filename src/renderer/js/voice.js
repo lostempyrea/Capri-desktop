@@ -19,6 +19,8 @@ export class Voice {
     this.custom = new Map(); // cue -> AudioBuffer
     this.lastBlip = 0;
     this.ttsEnabled = true;
+    this.vfxVolume = 0.8;
+    this.vfxGain = null;
     this.onSpeakingState = null; // (isSpeaking: boolean, volume: number) => void
   }
 
@@ -28,6 +30,9 @@ export class Voice {
     this.ctx = ctx;
     this.master = ctx.createGain();
     this.master.gain.value = this.volume;
+    this.vfxGain = ctx.createGain();
+    this.vfxGain.gain.value = (typeof this.vfxVolume === 'number') ? this.vfxVolume : 0.8;
+    this.vfxGain.connect(this.master);
     // soft clip so stacked cues never get harsh
     const shaper = ctx.createWaveShaper();
     const curve = new Float32Array(1024);
@@ -51,11 +56,24 @@ export class Voice {
     }
   }
 
+  setVfxVolume(vol) {
+    const v = Math.max(0, Math.min(1, Number(vol)));
+    this.vfxVolume = isNaN(v) ? 0.8 : v;
+    if (this.vfxGain) {
+      this.vfxGain.gain.value = this.vfxVolume;
+    }
+  }
+
   configure(cfg = {}) {
     if (typeof cfg.muted === 'boolean') this.muted = cfg.muted;
     if (typeof cfg.volume === 'number') {
       this.volume = cfg.volume;
       if (this.master) this.master.gain.value = cfg.volume;
+    }
+    if (typeof cfg.vfxVolume === 'number') {
+      this.setVfxVolume(cfg.vfxVolume);
+    } else if (typeof cfg.voice?.vfxVolume === 'number') {
+      this.setVfxVolume(cfg.voice.vfxVolume);
     }
     if (cfg.voice?.ttsEnabled !== undefined) {
       this.ttsEnabled = Boolean(cfg.voice.ttsEnabled);
@@ -98,7 +116,7 @@ export class Voice {
       src.buffer = audioBuf;
       const gain = ctx.createGain();
       gain.gain.value = this.volume;
-      src.connect(gain).connect(this.master);
+      src.connect(gain).connect(this.vfxGain || this.master);
       src.start();
     } catch (err) {
       console.warn('[voice] playSoundFile failed:', url, err.message);
@@ -113,7 +131,7 @@ export class Voice {
     if (custom) {
       const src = ctx.createBufferSource();
       src.buffer = custom;
-      src.connect(this.master);
+      src.connect(this.vfxGain || this.master);
       src.start();
       return;
     }
@@ -147,7 +165,7 @@ export class Voice {
     osc.frequency.exponentialRampToValueAtTime(120, t + 0.07);
     gain.gain.setValueAtTime(0.5, t);
     gain.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
-    osc.connect(gain).connect(this.master);
+    osc.connect(gain).connect(this.vfxGain || this.master);
     osc.start(t);
     osc.stop(t + 0.07);
 
@@ -158,7 +176,7 @@ export class Voice {
     osc2.frequency.exponentialRampToValueAtTime(180, t + 0.13);
     gain2.gain.setValueAtTime(0.4, t + 0.05);
     gain2.gain.exponentialRampToValueAtTime(0.001, t + 0.13);
-    osc2.connect(gain2).connect(this.master);
+    osc2.connect(gain2).connect(this.vfxGain || this.master);
     osc2.start(t + 0.05);
     osc2.stop(t + 0.13);
   }
@@ -177,7 +195,7 @@ export class Voice {
     gain.gain.exponentialRampToValueAtTime(0.0001, t + a + d);
   }
 
-  osc(type, freq, t, dur, peak, dest = this.master) {
+  osc(type, freq, t, dur, peak, dest = (this.vfxGain || this.master)) {
     const ctx = this.ctx;
     const o = ctx.createOscillator();
     const g = ctx.createGain();
@@ -201,7 +219,7 @@ export class Voice {
     bp.frequency.exponentialRampToValueAtTime(to, t + dur);
     const g = ctx.createGain();
     this.env(g, t, 0.005, peak, dur);
-    src.connect(bp).connect(g).connect(this.master);
+    src.connect(bp).connect(g).connect(this.vfxGain || this.master);
     src.start(t, rand(0, 0.5));
     src.stop(t + dur + 0.05);
   }
@@ -257,7 +275,7 @@ export class Voice {
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(0.07, t + 0.55);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.66);
-    o.connect(g).connect(this.master);
+    o.connect(g).connect(this.vfxGain || this.master);
     o.start(t);
     o.stop(t + 0.7);
     for (let i = 0; i < 6; i++) this.noiseBurst(t + 0.08 + i * 0.09, 0.02, 0.04 + i * 0.016, 3000, 7000, 6);
@@ -418,8 +436,7 @@ export class Voice {
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
-        const isVi = /[àáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđ]/i.test(text);
-        utterance.lang = isVi ? 'vi-VN' : 'en-US';
+        utterance.lang = 'en-US';
         utterance.rate = 1.05;
 
         let mouthInterval = setInterval(() => {

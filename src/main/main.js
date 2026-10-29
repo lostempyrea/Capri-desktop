@@ -303,6 +303,9 @@ function updateConfig(patch) {
     updateAgentHookState(Boolean(patch.agentHookEnabled));
   }
   config.save(patch);
+  if (patch.discordToken !== undefined || patch.discordUserId !== undefined) {
+    discord?.restart?.().catch((e) => console.warn('[discord] restart error on config update:', e));
+  }
   const cfg = rendererConfig();
   overlay?.webContents.send('capri:config', cfg);
   rebuildTray();
@@ -737,8 +740,12 @@ function registerIpc() {
     return assistantTools.getWeather(city, lang);
   });
   ipcMain.handle('discord:status', () => discord?.status() || { running: false });
+  ipcMain.handle('discord:restart', async () => {
+    if (!discord) return { ok: false, error: 'Discord Bot is not initialized.' };
+    return await discord.restart();
+  });
   ipcMain.handle('discord:command', async (_e, payload) => {
-    if (!discord) return { ok: false, message: 'Discord Bot chưa được khởi tạo' };
+    if (!discord) return { ok: false, message: 'Discord Bot is not initialized.' };
     return await discord.handleDesktopCommand(payload);
   });
   ipcMain.handle('stt:transcribe', async (_e, { buffer, mimeType }) => {

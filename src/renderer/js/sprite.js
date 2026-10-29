@@ -430,4 +430,37 @@ export class SpriteRenderer {
     gl.uniform1f(u.uAlpha, s.alpha);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
+
+  clear() {
+    const { gl } = this;
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+  }
 }
+
+// Canonical Sprite configuration dictionary for all Capri emotes & gestures
+export const SPRITE_CLIPS = {
+  idle: { frameCount: 16, frameWidth: 240, frameHeight: 384, fps: 8, loop: true },
+  blink: { frameCount: 4, frameWidth: 240, frameHeight: 384, fps: 8, loop: false },
+  blink_glitch: { frameCount: 4, frameWidth: 240, frameHeight: 384, fps: 8, loop: false },
+  grin: { frameCount: 16, frameWidth: 240, frameHeight: 384, fps: 8, loop: true },
+  glitch: { frameCount: 10, frameWidth: 240, frameHeight: 384, fps: 15, loop: false },
+  dangle: { frameCount: 24, frameWidth: 240, frameHeight: 384, fps: 10, loop: true },
+  sleep: { frameCount: 16, frameWidth: 240, frameHeight: 384, fps: 6, loop: true },
+  wake: { frameCount: 13, frameWidth: 240, frameHeight: 384, fps: 15, loop: false },
+  arrive: { frameCount: 14, frameWidth: 240, frameHeight: 384, fps: 15, loop: false },
+  leave: { frameCount: 12, frameWidth: 240, frameHeight: 384, fps: 15, loop: false },
+  dance: { frameCount: 16, frameWidth: 240, frameHeight: 384, fps: 16, loop: true },
+  point: { frameCount: 15, frameWidth: 240, frameHeight: 384, fps: 24, loop: false },
+  bolt: { frameCount: 12, frameWidth: 240, frameHeight: 384, fps: 24, loop: false },
+  satellite: { frameCount: 36, frameWidth: 240, frameHeight: 384, fps: 12, loop: false },
+  perch: { frameCount: 16, frameWidth: 384, frameHeight: 384, fps: 8, loop: true },
+  perch_arrive: { frameCount: 14, frameWidth: 384, frameHeight: 384, fps: 15, loop: false },
+  perch_leave: { frameCount: 12, frameWidth: 384, frameHeight: 384, fps: 15, loop: false },
+  perch_dance: { frameCount: 16, frameWidth: 384, frameHeight: 384, fps: 16, loop: true },
+  perch_blink: { frameCount: 4, frameWidth: 384, frameHeight: 384, fps: 8, loop: false },
+  perch_blink_glitch: { frameCount: 4, frameWidth: 384, frameHeight: 384, fps: 8, loop: false },
+  perch_glitch: { frameCount: 10, frameWidth: 384, frameHeight: 384, fps: 15, loop: false },
+  walk: { frameCount: 12, frameWidth: 240, frameHeight: 384, fps: 12, loop: true },
+  mouth: { frameCount: 5, frameWidth: 240, frameHeight: 384, fps: 12, loop: false },
+};

@@ -260,11 +260,11 @@ export class VoiceInput {
     await this.initAudio(deviceId);
 
     const found = this.microphones.find((m) => m.id === deviceId);
-    const micName = found?.label || (deviceId === 'default' || !deviceId ? 'Mặc định hệ thống' : 'Microphone');
+    const micName = found?.label || (deviceId === 'default' || !deviceId ? 'System Default' : 'Microphone');
 
     if (announce) {
       this.showResponse({
-        line: `Đã chuyển micro: ${micName}`,
+        line: `Switched microphone: ${micName}`,
         badge: 'MIC',
         hold: 4000,
         tts: false,
@@ -289,8 +289,8 @@ export class VoiceInput {
 
   updateMicTooltip() {
     const current = this.microphones.find((m) => m.id === this.currentMicId);
-    const name = current?.label || (this.currentMicId === 'default' || !this.currentMicId ? 'Mặc định hệ thống' : 'Microphone');
-    this.panel?.setMicTooltip?.(`[ MIC ] ${name}\n• Click: Bật/Tắt nghe lệnh\n• Chuột phải: Đổi micro`);
+    const name = current?.label || (this.currentMicId === 'default' || !this.currentMicId ? 'System Default' : 'Microphone');
+    this.panel?.setMicTooltip?.(`[ MIC ] ${name}\n• Click: Toggle Voice Listening\n• Right-click: Switch Microphone`);
   }
 
   setWakeWordEnabled(enabled) {
@@ -577,8 +577,8 @@ export class VoiceInput {
 
   getUserNick() {
     const custom = (this.brain?.userName || '').trim();
-    const nicks = ['tèo', 'blue'];
-    if (custom && custom.toLowerCase() !== 'tèo') {
+    const nicks = ['partner', 'choom', 'blue'];
+    if (custom && custom.toLowerCase() !== 'tèo' && custom.toLowerCase() !== 'partner') {
       return Math.random() < 0.6 ? custom : nicks[Math.floor(Math.random() * nicks.length)];
     }
     return nicks[Math.floor(Math.random() * nicks.length)];
@@ -594,54 +594,54 @@ export class VoiceInput {
 
     const lower = text.toLowerCase();
 
-    // 1. Fast media controls (Bilingual)
-    if (/^(dừng nhạc|tạm dừng|pause|pause music)$/i.test(lower)) {
+    // 1. Fast media controls
+    if (/^(pause|pause music|hold music)$/i.test(lower)) {
       this.player?.pause();
-      this.showResponse({ line: `Đã tạm dừng nhạc rồi nhé ${this.getUserNick()}!`, badge: 'MEDIA', hold: 3000 });
+      this.showResponse({ line: `Paused music, ${this.getUserNick()}!`, badge: 'MEDIA', hold: 3000 });
       return;
     }
-    if (/^(tiếp tục|phát tiếp|resume|unpause|play music)$/i.test(lower)) {
+    if (/^(resume|unpause|play music|continue)$/i.test(lower)) {
       this.player?.play();
-      this.showResponse({ line: `Tiếp tục phát nhạc thôi ${this.getUserNick()}!`, badge: 'MEDIA', hold: 3000 });
+      this.showResponse({ line: `Resumed music playback, ${this.getUserNick()}!`, badge: 'MEDIA', hold: 3000 });
       return;
     }
-    if (/^(bài tiếp theo|qua bài|bỏ qua bài|chuyển bài|next|skip|next track|next song)$/i.test(lower)) {
+    if (/^(next|skip|next track|next song)$/i.test(lower)) {
       this.player?.next();
       this.host?.discordCommand?.('skip');
-      this.showResponse({ line: 'Đã chuyển sang bài tiếp theo!', badge: 'MEDIA', hold: 3000 });
+      this.showResponse({ line: 'Skipped to next track!', badge: 'MEDIA', hold: 3000 });
       return;
     }
-    if (/^(tắt nhạc|dừng hẳn|stop|stop music)$/i.test(lower)) {
+    if (/^(stop|stop music|shut up)$/i.test(lower)) {
       this.player?.stop();
       this.host?.discordCommand?.('stop');
-      this.showResponse({ line: 'Đã tắt nhạc hoàn toàn.', badge: 'MEDIA', hold: 3000 });
+      this.showResponse({ line: 'Music stopped.', badge: 'MEDIA', hold: 3000 });
       return;
     }
-    if (/^(rời phòng|thoát discord|out discord|leave discord|disconnect discord)$/i.test(lower)) {
+    if (/^(leave discord|disconnect discord|exit discord)$/i.test(lower)) {
       this.host?.discordCommand?.('leave');
-      this.showResponse({ line: 'Đã cho bot rời khỏi phòng Discord!', badge: 'DISCORD', hold: 3000 });
+      this.showResponse({ line: 'Disconnected bot from Discord voice channel!', badge: 'DISCORD', hold: 3000 });
       return;
     }
-    if (/^(to lên|tăng âm|to tiếng|volume up|louder)$/i.test(lower)) {
+    if (/^(volume up|louder|turn it up)$/i.test(lower)) {
       const v = this.player?.volumeUp();
-      this.showResponse({ line: `Tăng âm lượng lên ${v}%!`, badge: 'VOLUME', hold: 3000 });
+      this.showResponse({ line: `Volume raised to ${v}%!`, badge: 'VOLUME', hold: 3000 });
       return;
     }
-    if (/^(nhỏ xuống|giảm âm|nhỏ tiếng|volume down|quieter)$/i.test(lower)) {
+    if (/^(volume down|quieter|turn it down)$/i.test(lower)) {
       const v = this.player?.volumeDown();
-      this.showResponse({ line: `Giảm âm lượng xuống ${v}%!`, badge: 'VOLUME', hold: 3000 });
+      this.showResponse({ line: `Volume lowered to ${v}%!`, badge: 'VOLUME', hold: 3000 });
       return;
     }
-    const volM = /^(?:âm lượng|volume)\s+(\d+)/i.exec(lower);
+    const volM = /^(?:volume)\s+(\d+)/i.exec(lower);
     if (volM) {
       const val = parseInt(volM[1], 10);
       const v = this.player?.setVolume(val / 100);
-      this.showResponse({ line: `Đặt âm lượng ${v}%!`, badge: 'VOLUME', hold: 3000 });
+      this.showResponse({ line: `Volume set to ${v}%!`, badge: 'VOLUME', hold: 3000 });
       return;
     }
 
     // 2. Cyberpunk Instant Replay ("Clip That" / "Record That")
-    if (/(clip\s+that(\s+shit)?|record\s+that|lưu\s+lại\s+pha\s+vừa\s+rồi|quay\s+lại\s+pha\s+vừa\s+rồi|clip\s+lại\s+đi)/i.test(lower)) {
+    if (/(clip\s+that(\s+shit)?|record\s+that)/i.test(lower)) {
       if (this.replayBuffer) {
         await this.replayBuffer.clip();
         return;
@@ -649,7 +649,7 @@ export class VoiceInput {
     }
 
     // 3. Screen Vision AI ("Look at my screen")
-    if (/(look at my screen|nhìn màn hình|xem màn hình|giải thích màn hình|dịch đoạn chữ)/i.test(lower)) {
+    if (/(look at my screen|check screen|explain screen)/i.test(lower)) {
       if (this.chat?.analyzeScreen) {
         await this.chat.analyzeScreen(text);
         return;
@@ -657,27 +657,27 @@ export class VoiceInput {
     }
 
     // 4. Sleep & Vanish modes
-    if (/^(sleep|ngủ đi|nghỉ đi|đi ngủ)$/i.test(lower)) {
+    if (/^(sleep|go to sleep|hibernate)$/i.test(lower)) {
       this.chip?.hibernate();
       this.showResponse({
-        line: `Capri đã vào chế độ ngủ đông 1 FPS. Gọi "Hey Capri" để đánh thức tôi nhé ${this.getUserNick()}!`,
+        line: `Capri entered 1 FPS standby mode. Call "Hey Capri" to wake me up, ${this.getUserNick()}!`,
         badge: 'SLEEP',
         hold: 4000,
         tts: true
       });
       return;
     }
-    if (/^(vanish|hide|ẩn đi|biến mất)$/i.test(lower)) {
+    if (/^(vanish|hide|disappear)$/i.test(lower)) {
       this.chip?.vanish();
       this.panel?.hide();
       return;
     }
 
     // 5. Voice Timer & Reminder
-    const timerMatch = lower.match(/(?:nhắc tôi sau|hẹn giờ|set a timer for)\s+(\d+)\s*(?:phút|minutes|mins?)/i);
+    const timerMatch = lower.match(/(?:remind me in|set a timer for|timer)\s+(\d+)\s*(?:minutes|mins?)/i);
     if (timerMatch) {
       const mins = parseInt(timerMatch[1], 10);
-      this.timerGuardian?.setTimer(mins, 'Công việc');
+      this.timerGuardian?.setTimer(mins, 'Task');
       return;
     }
 

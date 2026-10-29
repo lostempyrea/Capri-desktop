@@ -93,6 +93,22 @@ export class Capri {
     this.targetStageOffset = 0;
     this.nextStageStep = performance.now() + 3500;
 
+    this.isWandering = false;
+    this.wanderWhenIdle = true;
+    this.lastFrameRenderedAt = Date.now();
+
+    // Anti-freeze watchdog: restarts loop if frozen for > 1500ms
+    this.watchdogInterval = setInterval(() => {
+      const now = Date.now();
+      const stalled = now - (this.lastFrameRenderedAt || 0) > 1500;
+      if (!this.hidden && stalled && !this.root.closest('[hidden]')) {
+        console.warn('[capri] watchdog restarting frozen frame loop...');
+        if (this.rafId) cancelAnimationFrame(this.rafId);
+        this.lastFrameRenderedAt = now;
+        this.rafId = requestAnimationFrame(this.loop);
+      }
+    }, 3000);
+
     this.alphaMap = this.buildAlphaMap(image);
     this.setScale(this.scale);
     this.bindPointer();
@@ -302,16 +318,23 @@ export class Capri {
   }
 
   resumeLoop() {
-    if (!this.rafId && !this.hidden && !this.root.closest('[hidden]')) {
-      this.rafId = requestAnimationFrame(this.loop);
+    try {
+      if (!this.rafId) {
+        this.hidden = false;
+        this.rafId = requestAnimationFrame(this.loop);
+      }
+    } catch (err) {
+      console.error('[capri] resumeLoop error:', err);
     }
   }
 
   pauseLoop() {
-    if (this.rafId) {
-      cancelAnimationFrame(this.rafId);
-      this.rafId = null;
-    }
+    try {
+      if (this.rafId) {
+        cancelAnimationFrame(this.rafId);
+        this.rafId = null;
+      }
+    } catch {}
   }
 
   loop(now) {
@@ -320,22 +343,32 @@ export class Capri {
       return;
     }
     this.rafId = requestAnimationFrame(this.loop);
-    if (Math.abs(this.targetStageOffset - this.stageOffset) > 0.05) {
-      this.stageOffset = lerp(this.stageOffset, this.targetStageOffset, 0.08);
-      this.place();
-    } else {
-      this.stageOffset = this.targetStageOffset;
+    this.lastFrameRenderedAt = Date.now();
+
+    try {
+      if (Math.abs(this.targetStageOffset - this.stageOffset) > 0.05) {
+        this.stageOffset = lerp(this.stageOffset, this.targetStageOffset, 0.08);
+        this.place();
+      } else {
+        this.stageOffset = this.targetStageOffset;
+      }
+      if (now - this.lastDraw < this.interval() - 1) return;
+      this.drawFrame(now);
+      this.behave(now);
+    } catch (err) {
+      console.warn('[capri] loop execution warning:', err);
     }
-    if (now - this.lastDraw < this.interval() - 1) return;
-    this.drawFrame(now);
-    this.behave(now);
   }
 
   drawFrame(now = performance.now()) {
-    this.lastDraw = now;
-    this.animate(now);
-    this.sprite.draw(this.p);
-    this.place();
+    try {
+      this.lastDraw = now;
+      this.animate(now);
+      this.sprite.draw(this.p);
+      this.place();
+    } catch (err) {
+      console.warn('[capri] drawFrame warning:', err);
+    }
   }
 
   // Pick the drawing: the stance's cycle underneath, the current act on top.
@@ -418,6 +451,15 @@ export class Capri {
       return;
     }
 
+    const isPanelOpen = document.body.classList.contains('is-panel-open') || Boolean(document.querySelector('#panel:not([hidden])'));
+
+    // Wander When Idle: when chat is closed and idle > 10s, wander desktop and perch on ledges
+    if (this.mode === 'idle' && !isPanelOpen && !this.busy && !this.stowed && !this.dormant && this.wanderWhenIdle !== false) {
+      if (now - this.lastActivity > 10000 && !this.isWandering) {
+        this.wanderDesktop();
+      }
+    }
+
     if (this.stance === 'peek' && now > this.peekUntil) {
       this.unpeek();
       return;
@@ -453,6 +495,73 @@ export class Capri {
     }
   }
 
+  // Recall immediately to fixed stage in chat panel
+  recallToStage() {
+    try {
+      this.isWandering = false;
+      try { this.voice?.play('teleport-out'); } catch {}
+      const stageParent = document.querySelector('.holo-stage-wrap');
+      if (stageParent && this.root && this.root.parentElement !== stageParent) {
+        stageParent.appendChild(this.root);
+      }
+      if (this.root) {
+        this.root.classList.remove('is-wandering');
+      }
+      this.view = { w: 220, h: 380 };
+      this.pos = { x: 110, y: 350 };
+      this.stageOffset = 0;
+      this.targetStageOffset = 0;
+      try { this.endAct(false); } catch {}
+      try { this.setStance('stand'); } catch {}
+      try { this.place(); } catch {}
+      try { this.voice?.play('teleport-in'); } catch {}
+    } catch (err) {
+      console.error('[capri] recallToStage error:', err);
+    }
+  }
+
+  // Wander across desktop and perch on window ledges
+  async wanderDesktop() {
+    if (this.isWandering || this.busy || this.stowed || this.dormant || this.mode === 'sleep') return;
+    const isPanelOpen = document.body.classList.contains('is-panel-open') || Boolean(document.querySelector('#panel:not([hidden])'));
+    if (isPanelOpen) return;
+
+    this.isWandering = true;
+    this.voice?.play('teleport-out');
+    if (this.root.parentElement !== document.body) {
+      document.body.appendChild(this.root);
+    }
+    this.root.classList.add('is-wandering');
+    this.view = { w: window.innerWidth, h: window.innerHeight };
+
+    // Find window ledges or pick a floor spot
+    let target = null;
+    try {
+      if (this.host?.getLedges) {
+        const snap = await this.host.getLedges();
+        if (snap?.wins?.length) {
+          this.windows = snap;
+          const seat = this.pickSeat();
+          if (seat) {
+            target = { pos: this.seat(seat.win, seat.dx), stance: 'sit', perch: { id: seat.win.id, dx: seat.dx } };
+          }
+        }
+      }
+    } catch {}
+
+    if (!target) {
+      const rx = rand(100, Math.max(200, window.innerWidth - 100));
+      const ry = Math.max(200, window.innerHeight - 80);
+      target = { pos: { x: rx, y: ry }, stance: 'stand', perch: null };
+    }
+
+    this.pos = target.pos;
+    this.setStance(target.stance, { perch: target.perch });
+    this.place();
+    this.voice?.play('teleport-in');
+    this.perform('arrive');
+  }
+
   // What she does with herself when nobody needs her: stay within the Holo-Stage
   wanderStep() {
     this.flourish();
@@ -468,6 +577,22 @@ export class Capri {
   // Play an act from acting.js. Resolves when it's over (or cut off by a stronger one).
   perform(name, dir = 0, { reach = 1 } = {}) {
     if (this.stowed || this.dormant) return Promise.resolve(); // nobody to act: she's in her biochip, or just her mask
+    if (name === 'satellite') {
+      return new Promise((done) => {
+        this.gaze({ big: true });
+        const check = setInterval(() => {
+          if (!this.sky && !this.act) {
+            clearInterval(check);
+            done();
+          }
+        }, 120);
+      });
+    }
+    if (name === 'cheer') {
+      name = 'victory';
+    } else if (name === 'bolt') {
+      name = 'zap';
+    }
     const act = ACTS[name];
     if (!act) {
       console.warn(`[capri] unknown act requested: ${name}`);
@@ -490,6 +615,16 @@ export class Capri {
     if (!current) return;
     this.act = null;
     if (completed && current.player.act.flip) this.facing *= -1;
+    // Clean up temporary shader distortions so canvas is pristine
+    this.p.glitch = 0;
+    this.p.split = 0;
+    this.p.collapse = 0;
+    this.p.dissolve = 0;
+    this.p.smear = [0, 0];
+    this.p.echo = [0, 0];
+    this.p.silAmount = 0;
+    this.sx = 1;
+    this.sy = 1;
     current.done();
   }
 
@@ -634,13 +769,23 @@ export class Capri {
       }
     }
     const dir = this.towardCenter();
-    const { w } = this.view;
+    const inStage = Boolean(this.root.closest('.holo-character-stage'));
+    const { w, h } = this.view;
     const side = this.armToward(dir);
     const { shoulder } = this.limb(side);
-    // up and well off to the side, so her arm points at it clear of her mane
-    const y = clamp(shoulder.y - rand(280, 400), 50, shoulder.y - 180);
-    const x = clamp(shoulder.x + dir * rand(380, 520), 40, w - 40);
-    const to = { x: clamp(x + dir * rand(170, 260), 30, w - 30), y: y - rand(10, 40) };
+
+    let x, y, to;
+    if (inStage) {
+      // In stage: scale satellite flight cleanly to Holo-Stage dimensions
+      y = clamp(shoulder.y - 120, 35, shoulder.y - 45);
+      x = clamp(shoulder.x + dir * 60, 25, w - 25);
+      to = { x: clamp(x + dir * 75, 15, w - 15), y: clamp(y - 25, 15, (h || 380) - 40) };
+    } else {
+      // Full screen desktop
+      y = clamp(shoulder.y - rand(280, 400), 50, shoulder.y - 180);
+      x = clamp(shoulder.x + dir * rand(380, 520), 40, w - 40);
+      to = { x: clamp(x + dir * rand(170, 260), 30, w - 30), y: y - rand(10, 40) };
+    }
     const sat = this.fx.satellite({ x, y }, to, { duration: 9500 });
     // how far up the arm must come to point at it right now (it hangs ~30 degrees low at rest)
     const reach = () => {
@@ -655,6 +800,9 @@ export class Capri {
     this.perform(big ? 'uplink' : 'gaze', dir, { reach }).then(() => {
       this.clearSky();
       if (big) this.onGaze?.('end');
+      this.endAct(true);
+      this.setStance('stand');
+      this.drawFrame();
     });
     return true;
   }
@@ -681,6 +829,7 @@ export class Capri {
     sat.fade();
     this.sky = null;
     tween(this.p, { sparkle: this.mode === 'sleep' ? 0.35 : 1 }, 400, ease.out);
+    this.setStance('stand');
   }
 
   // How far her head has moved since her stars lifted off it.
@@ -1617,9 +1766,11 @@ export class Capri {
           this.onTeleport?.('start');
         }
         if (this.dragging) {
+          const maxW = this.isWandering ? window.innerWidth : this.view.w;
+          const maxH = this.isWandering ? window.innerHeight : this.floor;
           this.pos = {
-            x: clamp(down.pos.x + dx, 40, this.view.w - 40),
-            y: clamp(down.pos.y + dy, SPRITE.height * this.scale * 0.5, this.floor),
+            x: clamp(down.pos.x + dx, 40, maxW - 40),
+            y: clamp(down.pos.y + dy, 40, maxH - 20),
           };
           this.p.glitchSeed = Math.random() * 100;
           this.place();
@@ -1649,6 +1800,8 @@ export class Capri {
       if (wasDragging) {
         tween(this.p, { glitch: 0, split: 0 }, 200, ease.out);
         this.onTeleport?.('end');
+        this.endAct(false);
+        this.setStance('stand');
         this.drop(vx, vy);
       } else {
         this.onClick?.();
@@ -1658,6 +1811,9 @@ export class Capri {
 
   // Let go of her: onto a ledge if her hips are right at one, otherwise she falls or tosses.
   async drop(vx = 0, vy = 0) {
+    const maxW = this.isWandering ? window.innerWidth : this.view.w;
+    const floorY = this.isWandering ? window.innerHeight - 50 : this.floor;
+
     if (Math.hypot(vx, vy) > 280) {
       let curX = this.pos.x;
       let curY = this.pos.y;
@@ -1675,15 +1831,17 @@ export class Capri {
         velY += gravity * dt;
         velX *= 0.95;
 
-        if (curX <= 40 || curX >= this.view.w - 40) {
+        if (curX <= 40 || curX >= maxW - 40) {
           velX = -velX * 0.4;
-          curX = clamp(curX, 40, this.view.w - 40);
+          curX = clamp(curX, 40, maxW - 40);
         }
 
-        if (curY >= this.floor) {
-          curY = this.floor;
+        if (curY >= floorY) {
+          curY = floorY;
           this.pos = { x: curX, y: curY };
           this.place();
+          this.endAct(false);
+          this.setStance('stand');
           this.perform('arrive');
           this.voice?.play('land');
           return;
@@ -1706,6 +1864,7 @@ export class Capri {
   }
 
   async snapToLedges() {
+    this.endAct(false);
     let ledges = this.windows?.wins || [];
     try {
       if (this.host?.getLedges) {
@@ -1720,7 +1879,7 @@ export class Capri {
     const s = this.scale;
     const hip = this.pos.y - (SPRITE.feet.y - SPRITE.hip) * s;
     for (const win of ledges) {
-      if (!this.canSit(win) || Math.abs(hip - win.y) > 28) continue;
+      if (!this.canSit(win) || Math.abs(hip - win.y) > 36) continue;
       if (this.pos.x < win.x + 30 || this.pos.x > win.x + win.w - 30 || this.covered(win, this.pos.x)) continue;
       const dx = this.pos.x - win.x;
       this.pos = this.seat(win, dx);
@@ -1730,9 +1889,11 @@ export class Capri {
       return;
     }
 
-    if (this.pos.y < this.floor - 2) {
+    const floorY = this.isWandering ? window.innerHeight - 50 : this.floor;
+    if (this.pos.y < floorY - 10) {
       this.fall();
     } else {
+      this.setStance('stand');
       this.perform('arrive');
       this.voice?.play('land');
     }

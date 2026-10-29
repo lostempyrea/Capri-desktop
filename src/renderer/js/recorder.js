@@ -31,7 +31,7 @@ export class ScreenRecorder {
 
   async start() {
     if (this.isRecording) {
-      return { ok: false, message: 'Đang trong quá trình quay màn hình rồi bồ tèo!' };
+      return { ok: false, message: 'Screen recording is already in progress, choom!' };
     }
 
     try {
@@ -115,8 +115,8 @@ export class ScreenRecorder {
       this.panel?.say?.({
         kind: 'info',
         badge: 'REC',
-        line: 'Bắt đầu quay màn hình (60 FPS + Âm thanh hệ thống)! Nói "Dừng quay" hoặc bấm nút để kết thúc.',
-        actions: [{ id: 'stop', label: 'Dừng quay màn hình', primary: true }],
+        line: 'Screen recording started (60 FPS + Audio)! Say "Stop recording" or click button to finish.',
+        actions: [{ id: 'stop', label: 'Stop Recording', primary: true }],
         onAction: (id) => {
           if (id === 'stop') this.stop();
         },
@@ -133,7 +133,7 @@ export class ScreenRecorder {
 
   async stop() {
     if (!this.isRecording) {
-      return { ok: false, message: 'Hiện không có tiến trình quay màn hình nào.' };
+      return { ok: false, message: 'No screen recording is currently active.' };
     }
 
     this.isRecording = false;
@@ -157,7 +157,7 @@ export class ScreenRecorder {
           this.panel?.say?.({
             kind: 'error',
             badge: 'REC',
-            line: 'Quá trình quay quá ngắn hoặc không có dữ liệu hình ảnh!',
+            line: 'Recording too short or no video frames captured!',
             hold: 4000,
           });
           resolve({ ok: false, error: 'No data recorded' });
@@ -180,11 +180,11 @@ export class ScreenRecorder {
             this.panel?.say?.({
               kind: 'done',
               badge: 'REC',
-              line: `Đã xuất video MP4 chất lượng cao: ${res.fileName}!`,
+              line: `High-quality MP4 video exported: ${res.fileName}!`,
               actions: [
-                { id: 'play', label: 'Mở video .MP4', primary: true },
-                { id: 'folder', label: 'Mở thư mục' },
-                { id: 'ok', label: 'Đóng' },
+                { id: 'play', label: 'Open Video', primary: true },
+                { id: 'folder', label: 'Open Folder' },
+                { id: 'ok', label: 'Close' },
               ],
               onAction: (id) => {
                 if (id === 'play') this.host.openFolder(res.filePath);
@@ -198,7 +198,7 @@ export class ScreenRecorder {
             this.panel?.say?.({
               kind: 'error',
               badge: 'REC',
-              line: `Lỗi khi lưu video MP4: ${res?.error || 'Không xác định'}`,
+              line: `Error saving MP4 video: ${res?.error || 'Unknown error'}`,
               hold: 6000,
             });
             resolve({ ok: false, error: res?.error });

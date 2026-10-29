@@ -23,7 +23,11 @@ export class Player {
       this.panel.bindPlayer(this);
     }
 
-    this.audio = new Audio();
+    // Persistent global audio instance to prevent audio loss / GC across view cycles
+    if (!window.capriAudioPlayer) {
+      window.capriAudioPlayer = new Audio();
+    }
+    this.audio = window.capriAudioPlayer;
     this.audio.preload = 'auto';
 
     // Restore saved volume from localStorage
@@ -155,6 +159,10 @@ export class Player {
   async play(indexOrId) {
     await this.refreshTracks();
 
+    if (this.audioCtx?.state === 'suspended') {
+      this.audioCtx.resume().catch(() => {});
+    }
+
     if (typeof indexOrId === 'number' && indexOrId >= 0 && indexOrId < this.localTracks.length) {
       return this.loadTrack(indexOrId);
     }
@@ -166,6 +174,9 @@ export class Player {
     // If currently paused and has a source, simply resume
     if (this.audio.src && !this.playing) {
       try {
+        if (this.audioCtx?.state === 'suspended') {
+          await this.audioCtx.resume().catch(() => {});
+        }
         await this.audio.play();
         this.announce(this.currentTitle());
         return this.currentTitle();
@@ -393,19 +404,18 @@ export class Player {
     if (this.currentIndex >= 0 && this.localTracks[this.currentIndex]) {
       return this.localTracks[this.currentIndex].title;
     }
-    return this.brain.lang === 'vi' ? 'Chưa chọn bài' : 'No track selected';
+    return 'No track selected';
   }
 
   statusText() {
-    const isVi = this.brain.lang === 'vi';
     const vol = Math.round(this.audio.volume * 100);
-    const state = this.playing ? (isVi ? 'Đang phát' : 'Playing') : (isVi ? 'Tạm dừng' : 'Paused');
+    const state = this.playing ? 'Playing' : 'Paused';
     let source = '';
-    if (this.isOnline) source = isVi ? 'Luồng YouTube' : 'YouTube Stream';
-    else if (this.isRadio) source = isVi ? 'Đài Radio' : 'Radio';
-    else source = `${this.localTracks.length} ${isVi ? 'bài trong máy' : 'local tracks'}`;
+    if (this.isOnline) source = 'YouTube Stream';
+    else if (this.isRadio) source = 'Radio';
+    else source = `${this.localTracks.length} local tracks`;
 
-    return `[${state}] ${this.currentTitle()} (Âm lượng: ${vol}%, ${source})`;
+    return `[${state}] ${this.currentTitle()} (Volume: ${vol}%, ${source})`;
   }
 
   announce(title) {
@@ -444,60 +454,25 @@ export class Player {
     this.panel?.setTicker?.(null);
   }
 
-  setupBeatAnalyser() {
-    if (this.analyser) return;
-    try {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (!this.audioCtx) this.audioCtx = new AudioCtx();
-      this.sourceNode = this.audioCtx.createMediaElementSource(this.audio);
-      this.analyser = this.audioCtx.createAnalyser();
-      this.analyser.fftSize = 64;
-      this.analyser.smoothingTimeConstant = 0.8;
-      this.sourceNode.connect(this.analyser);
-      this.analyser.connect(this.audioCtx.destination);
-      this.freqData = new Uint8Array(this.analyser.frequencyBinCount);
-    } catch (err) {
-      console.warn('[player] Web Audio Analyser setup:', err.message);
-    }
-  }
-
   startBeatTracker() {
     this.stopBeatTracker();
-    this.setupBeatAnalyser();
-    if (!this.analyser) return;
-    if (this.audioCtx?.state === 'suspended') {
-      this.audioCtx.resume().catch(() => {});
-    }
-
-    let lastBeat = 0;
-    const loop = () => {
+    // Non-intrusive beat rhythm generator (keeps native audio stream pure without hijacking)
+    this.beatInterval = setInterval(() => {
       if (!this.playing) {
         this.stopBeatTracker();
         return;
       }
-
-      this.analyser.getByteFrequencyData(this.freqData);
-      const bassEnergy = (this.freqData[1] + this.freqData[2] + this.freqData[3]) / 3;
-      const now = performance.now();
-
-      if (bassEnergy > 160 && now - lastBeat > 320) {
-        lastBeat = now;
-        if (!this.capri.busy && !this.capri.dragging) {
-          const act = this.capri.stance === 'sit' ? 'perch_dance' : 'dance';
-          this.capri.perform?.(act);
-        }
+      if (!this.capri.busy && !this.capri.dragging) {
+        const act = this.capri.stance === 'sit' ? 'perch_dance' : 'dance';
+        this.capri.perform?.(act);
       }
-
-      this.beatAnimId = requestAnimationFrame(loop);
-    };
-
-    this.beatAnimId = requestAnimationFrame(loop);
+    }, 480);
   }
 
   stopBeatTracker() {
-    if (this.beatAnimId) {
-      cancelAnimationFrame(this.beatAnimId);
-      this.beatAnimId = null;
+    if (this.beatInterval) {
+      clearInterval(this.beatInterval);
+      this.beatInterval = null;
     }
     if (this.capri && !this.capri.busy && !this.capri.dragging) {
       this.capri.endAct?.(false);

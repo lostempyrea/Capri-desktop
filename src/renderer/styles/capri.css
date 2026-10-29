@@ -568,6 +568,23 @@ body.is-panel-open #biochip-voice-pill {
   pointer-events: none !important;
 }
 
+.hologram-screen.open,
+.hologram-screen.active,
+.panel.open,
+.panel.active {
+  display: flex !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+  z-index: 10000 !important;
+}
+
+.hologram-screen.closed,
+.panel.closed {
+  display: none !important;
+  pointer-events: none !important;
+}
+
 .panel[data-kind='work'] { --accent: var(--green); }
 .panel[data-kind='done'] { --accent: var(--green); }
 .panel[data-kind='alert'] { --accent: var(--red); }
@@ -1534,15 +1551,40 @@ body.is-panel-open #biochip-voice-pill {
   white-space: pre-wrap;
 }
 
+/* Right Column: Comms Hub & Chat */
+.holo-comms-hub {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 60% !important;
+  min-width: 0 !important;
+  height: 100% !important;
+  overflow: hidden !important;
+}
+
+.chat-messages,
+.holo-chat-history {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 auto !important;
+  min-height: 120px !important;
+  overflow-y: auto !important;
+}
+
 /* Bottom Input Row (44px) */
+.chat-input-container,
 .panel__chat,
 .holo-input-form {
+  position: relative !important;
+  z-index: 50 !important;
   height: 44px;
   min-height: 44px;
   flex-shrink: 0;
   background: transparent !important;
   border-top: 1px solid var(--theme-border-dim);
-  display: flex;
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
   align-items: center;
   gap: 8px;
   padding: 0 10px;
@@ -1552,6 +1594,11 @@ body.is-panel-open #biochip-voice-pill {
 
 .panel__input,
 .holo-input {
+  position: relative !important;
+  z-index: 51 !important;
+  pointer-events: auto !important;
+  user-select: text !important;
+  -webkit-user-select: text !important;
   flex: 1;
   background: rgba(var(--theme-bg-rgb, 15, 11, 24), 0.6) !important;
   border: 1px solid var(--theme-border-dim) !important;
@@ -1632,6 +1679,11 @@ body.is-panel-open #biochip-voice-pill {
 
 .panel__send,
 .holo-send-btn {
+  position: relative !important;
+  z-index: 51 !important;
+  pointer-events: auto !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
   background: var(--theme-secondary);
   border: 1px solid var(--theme-secondary);
   color: var(--holo-send-text, #fff);

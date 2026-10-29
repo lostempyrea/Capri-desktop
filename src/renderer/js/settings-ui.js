@@ -184,41 +184,41 @@ export class SettingsUI {
     modal.innerHTML = `
       <div class="settings-modal__frame">
         <header class="settings-modal__header">
-          <div class="settings-modal__title">[ CÀI ĐẶT HỆ THỐNG // SYSTEM CONTROL DECK ]</div>
-          <button class="settings-modal__close-btn" type="button" title="Quay lại Chat (Esc)">✕</button>
+          <div class="settings-modal__title">[ SYSTEM CONTROL DECK ]</div>
+          <button class="settings-modal__close-btn" type="button" title="Back to Chat (Esc)">✕</button>
         </header>
 
         <nav class="settings-modal__tabs">
-          <button class="settings-modal__tab is-active" data-tab="tab-user" type="button">HỒ SƠ</button>
-          <button class="settings-modal__tab" data-tab="tab-appearance" type="button">GIAO DIỆN</button>
+          <button class="settings-modal__tab is-active" data-tab="tab-user" type="button">PROFILE</button>
+          <button class="settings-modal__tab" data-tab="tab-appearance" type="button">APPEARANCE</button>
           <button class="settings-modal__tab" data-tab="tab-ai" type="button">AI & MODELS</button>
-          <button class="settings-modal__tab" data-tab="tab-voice" type="button">GIỌNG NÓI & ÂM THANH</button>
-          <button class="settings-modal__tab" data-tab="tab-system" type="button">HỆ THỐNG & GIỚI THIỆU</button>
+          <button class="settings-modal__tab" data-tab="tab-voice" type="button">VOICE & AUDIO</button>
+          <button class="settings-modal__tab" data-tab="tab-system" type="button">SYSTEM & ABOUT</button>
         </nav>
 
         <div class="settings-modal__body">
-          <!-- TAB 0: USER PROFILE (HỒ SƠ NGƯỜI DÙNG) -->
+          <!-- TAB 0: USER PROFILE -->
           <section id="tab-user" class="settings-modal__pane is-active">
-            <h3 class="settings-pane__title">HỒ SƠ NGƯỜI DÙNG // OPERATOR PROFILE</h3>
-            <p class="settings-pane__desc">Tùy chỉnh danh xưng, avatar đại diện đối thoại cùng Capri.</p>
+            <h3 class="settings-pane__title">OPERATOR PROFILE // USER PROFILE</h3>
+            <p class="settings-pane__desc">Customize your callsign and avatar for chat dialogue with Capri.</p>
 
             <div class="settings-form__group">
-              <label>Avatar đại diện của bạn (Kích thước chuẩn 40x40px):</label>
+              <label>Operator Avatar (Standard 40x40px):</label>
               <div class="user-profile-layout">
                 <div id="cfg-user-avatar-preview" class="user-avatar-preview-box"></div>
                 <div class="user-avatar-controls">
                   <div style="display: flex; gap: 8px;">
-                    <button id="cfg-user-avatar-upload-btn" class="settings-btn" type="button">TẢI ẢNH LÊN (UPLOAD)</button>
-                    <button id="cfg-user-avatar-reset-btn" class="settings-btn" type="button">MẶC ĐỊNH</button>
+                    <button id="cfg-user-avatar-upload-btn" class="settings-btn" type="button">UPLOAD IMAGE</button>
+                    <button id="cfg-user-avatar-reset-btn" class="settings-btn" type="button">DEFAULT</button>
                   </div>
                   <input type="file" id="cfg-user-avatar-file" accept="image/*" style="display: none;">
-                  <span style="font-size: 10px; color: var(--theme-text-dim);">Hỗ trợ PNG, JPG, WebP, SVG. Tự động tối ưu hóa kích thước.</span>
+                  <span style="font-size: 10px; color: var(--theme-text-dim);">Supported: PNG, JPG, WebP, SVG. Automatically optimized.</span>
                 </div>
               </div>
             </div>
 
             <div class="settings-form__group">
-              <label>Hoặc chọn Avatar Cyberpunk Preset:</label>
+              <label>Or select a Cyberpunk Preset avatar:</label>
               <div class="user-avatar-presets-grid">
                 <button type="button" class="user-avatar-preset-btn" data-preset="netrunner">
                   <div class="preset-avatar-icon" style="background-image: url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 40 40%22><rect width=%2240%22 height=%2240%22 fill=%22%230b0e14%22/><polygon points=%2220,4 34,14 34,28 20,36 6,28 6,14%22 fill=%22none%22 stroke=%22%2300f0ff%22 stroke-width=%221.5%22/><rect x=%2211%22 y=%2215%22 width=%2218%22 height=%226%22 rx=%222%22 fill=%22%2300f0ff%22 opacity=%220.85%22/><line x1=%228%22 y1=%2220%22 x2=%2232%22 y2=%2220%22 stroke=%22%2300ffff%22 stroke-width=%221%22/><path d=%22M14 26 L20 30 L26 26%22 fill=%22none%22 stroke=%22%2300f0ff%22 stroke-width=%221.5%22/><circle cx=%2220%22 cy=%2218%22 r=%221.5%22 fill=%22%23ffffff%22/></svg>')"></div>
@@ -240,48 +240,48 @@ export class SettingsUI {
             </div>
 
             <div class="settings-form__group">
-              <label>Tên / Danh xưng gọi bạn (Callsign):</label>
-              <input id="cfg-user-callsign" class="settings-input" placeholder="Ví dụ: Commander, Arch, Boss, Sensei..." />
+              <label>Callsign / Operator Name:</label>
+              <input id="cfg-user-callsign" class="settings-input" placeholder="e.g. Commander, Arch, Boss, Sensei..." />
             </div>
 
             <div class="settings-form__checkbox-row" style="margin-top: 12px;">
               <input id="cfg-user-random-nick" type="checkbox" checked>
-              <label for="cfg-user-random-nick">Tự động gọi ngẫu nhiên "tèo" / "blue" khi chưa cài danh xưng</label>
+              <label for="cfg-user-random-nick">Randomly tease with "partner" / "blue" when callsign is unset</label>
             </div>
 
             <div class="settings-form__divider"></div>
             <div class="settings-form__group">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                <label style="margin: 0;">Ký ức dài hạn của Capri về bạn (Long-term Memory: me.md):</label>
-                <button id="cfg-memory-save-btn" class="settings-btn" type="button" style="padding: 3px 12px; font-size: 11px;">LƯU KÝ ỨC</button>
+                <label style="margin: 0;">Capri Long-Term Memory (me.md):</label>
+                <button id="cfg-memory-save-btn" class="settings-btn" type="button" style="padding: 3px 12px; font-size: 11px;">SAVE MEMORY</button>
               </div>
-              <textarea id="cfg-user-memory-text" class="settings-textarea" style="width: 100%; height: 110px; font-family: var(--font-mono); font-size: 11px; padding: 8px; box-sizing: border-box; resize: vertical;" placeholder="Nhập thói quen, thông tin hoặc ghi chú bạn muốn Capri ghi nhớ dài lâu..."></textarea>
-              <span id="cfg-memory-status" style="font-size: 10px; color: var(--theme-text-dim);">Tự động nạp vào bộ não AI của Capri trong mọi cuộc hội thoại.</span>
+              <textarea id="cfg-user-memory-text" class="settings-textarea" style="width: 100%; height: 110px; font-family: var(--font-mono); font-size: 11px; padding: 8px; box-sizing: border-box; resize: vertical;" placeholder="Enter habits, preferences or notes you want Capri to remember long-term..."></textarea>
+              <span id="cfg-memory-status" style="font-size: 10px; color: var(--theme-text-dim);">Loaded automatically into Capri AI construct in every conversation.</span>
             </div>
           </section>
 
-          <!-- TAB 1: APPEARANCE (GIAO DIỆN) -->
+          <!-- TAB 1: APPEARANCE -->
           <section id="tab-appearance" class="settings-modal__pane">
-            <h3 class="settings-pane__title">KÍCH THƯỚC KHUNG HÌNH & CHẾ ĐỘ HIỂN THỊ</h3>
-            <p class="settings-pane__desc">Tùy biến kích thước chuẩn, phong cách kính trong suốt và bảng màu neon Cyberpunk.</p>
+            <h3 class="settings-pane__title">FRAME DIMENSIONS & DISPLAY MODES</h3>
+            <p class="settings-pane__desc">Configure frame geometry, frosted glass aesthetics, and Cyberpunk neon palettes.</p>
 
             <div class="settings-form__group">
-              <label>Kích thước khung chiếu Hologram (Frame Size Presets):</label>
+              <label>Holographic Frame Dimensions (Presets):</label>
               <div class="settings-preset-grid">
                 <button class="settings-preset-btn" data-w="580" data-h="380" type="button">
-                  <span class="preset-name">Nhỏ gọn</span>
+                  <span class="preset-name">Compact</span>
                   <span class="preset-dim">580 × 380</span>
                 </button>
                 <button class="settings-preset-btn is-active" data-w="700" data-h="450" type="button">
-                  <span class="preset-name">Tiêu chuẩn</span>
+                  <span class="preset-name">Standard</span>
                   <span class="preset-dim">700 × 450</span>
                 </button>
                 <button class="settings-preset-btn" data-w="840" data-h="520" type="button">
-                  <span class="preset-name">Mở rộng</span>
+                  <span class="preset-name">Expanded</span>
                   <span class="preset-dim">840 × 520</span>
                 </button>
                 <button class="settings-preset-btn" data-w="960" data-h="600" type="button">
-                  <span class="preset-name">Lớn</span>
+                  <span class="preset-name">Wide</span>
                   <span class="preset-dim">960 × 600</span>
                 </button>
               </div>
@@ -289,22 +289,22 @@ export class SettingsUI {
 
             <div class="settings-form__divider"></div>
 
-            <h3 class="settings-pane__title">CHẾ ĐỘ KÍNH TRONG SUỐT (CLEAR GLASS MODE)</h3>
+            <h3 class="settings-pane__title">CLEAR GLASS TRANSLUCENCY MODE</h3>
             <div class="settings-form__checkbox-row" style="margin-bottom: 12px;">
               <input id="cfg-clear-glass-toggle" type="checkbox">
-              <label for="cfg-clear-glass-toggle">Bật chế độ Clear Glass (Tối giản viền, tối đa độ trong suốt)</label>
+              <label for="cfg-clear-glass-toggle">Enable Clear Glass (Minimalist borders, maximum translucency)</label>
             </div>
 
             <div class="settings-grid-2">
               <div class="settings-form__group">
-                <label>Độ mờ nền (Background Opacity: 0% - 95%):</label>
+                <label>Background Opacity (0% - 95%):</label>
                 <div class="settings-slider__row">
                   <input id="cfg-opacity-slider" class="settings-slider" type="range" min="0" max="95" value="95">
                   <span id="cfg-opacity-val" class="settings-slider__val">95%</span>
                 </div>
               </div>
               <div class="settings-form__group">
-                <label>Độ nhòe hậu cảnh (Backdrop Blur: 0px - 30px):</label>
+                <label>Backdrop Blur (0px - 30px):</label>
                 <div class="settings-slider__row">
                   <input id="cfg-blur-slider" class="settings-slider" type="range" min="0" max="30" value="16">
                   <span id="cfg-blur-val" class="settings-slider__val">16px</span>
@@ -314,7 +314,7 @@ export class SettingsUI {
 
             <div class="settings-form__divider"></div>
 
-            <h3 class="settings-pane__title">HỆ MÀU GIAO DIỆN (CYBERPUNK THEMES)</h3>
+            <h3 class="settings-pane__title">CYBERPUNK THEME PALETTES</h3>
             <div class="settings-theme-cards">
               <div class="settings-theme-card is-active" data-theme="system">
                 <div class="theme-card__swatch">
@@ -363,7 +363,7 @@ export class SettingsUI {
             <input id="cfg-theme-select" type="hidden" value="system">
 
             <div class="settings-form__group" style="margin-top: 14px; margin-bottom: 6px;">
-              <label>Phông chữ hiển thị HUD & Terminal (Font Family):</label>
+              <label>HUD & Terminal Font Family:</label>
               <select id="cfg-font-family" class="settings-select">
                 <option value="ShareTechMono">Share Tech Mono (Cyberpunk HUD Standard)</option>
                 <option value="JetBrains Mono">JetBrains Mono (Developer Classic)</option>
@@ -373,17 +373,17 @@ export class SettingsUI {
 
             <div class="settings-form__divider"></div>
 
-            <h3 class="settings-pane__title">VỊ TRÍ THANH TRẠNG THÁI (STATUS BAR POSITION)</h3>
-            <p class="settings-pane__desc">Tùy chỉnh góc hiển thị hoặc kéo thả trực tiếp trên màn hình (Alt + Chuột trái).</p>
+            <h3 class="settings-pane__title">TOP-LEFT STATUS TICKER POSITION</h3>
+            <p class="settings-pane__desc">Configure anchor preset or drag directly on screen (Alt + Left Click).</p>
             <div class="settings-grid-2">
               <div class="settings-form__group">
-                <label>Vị trí neo nhanh (Anchor Preset):</label>
+                <label>Anchor Preset:</label>
                 <select id="cfg-ticker-preset" class="settings-select">
-                  <option value="top-left">Góc Trái Trên (Top-Left)</option>
-                  <option value="top-center">Giữa Trên (Top-Center)</option>
-                  <option value="top-right">Góc Phải Trên (Top-Right)</option>
-                  <option value="bottom-left">Góc Trái Dưới (Bottom-Left)</option>
-                  <option value="custom">Tùy chỉnh (Custom X/Y)</option>
+                  <option value="top-left">Top-Left</option>
+                  <option value="top-center">Top-Center</option>
+                  <option value="top-right">Top-Right</option>
+                  <option value="bottom-left">Bottom-Left</option>
+                  <option value="custom">Custom X/Y</option>
                 </select>
               </div>
               <div class="settings-form__group" style="display: flex; gap: 8px;">
@@ -400,11 +400,15 @@ export class SettingsUI {
 
             <div class="settings-form__divider"></div>
 
+            <div class="settings-form__checkbox-row" style="margin-top: 12px; margin-bottom: 8px;">
+              <input id="cfg-wander-idle" type="checkbox" checked>
+              <label for="cfg-wander-idle">Wander When Idle (Capri explores desktop & perches on windows when idle)</label>
+            </div>
+
             <div class="settings-form__group">
-              <label>Ngôn ngữ hiển thị (Language):</label>
+              <label>Display Language:</label>
               <select id="cfg-lang-select" class="settings-select">
-                <option value="vi">Tiếng Việt (Cyberpunk Assistant VI)</option>
-                <option value="en">English (Cyberpunk Assistant EN)</option>
+                <option value="en" selected>English (Cyberpunk Assistant EN)</option>
               </select>
             </div>
           </section>
@@ -414,17 +418,17 @@ export class SettingsUI {
             <!-- Active Model Banner at top -->
             <div class="settings-active-model-card">
               <div class="settings-active-model__header">
-                <span class="settings-active-model__badge">[ MÔ HÌNH HOẠT ĐỘNG // ACTIVE ]</span>
-                <span class="settings-active-model__ping">Độ trễ phản hồi: Cực nhanh</span>
+                <span class="settings-active-model__badge">[ ACTIVE AI MODEL ]</span>
+                <span class="settings-active-model__ping">Response latency: Ultra fast</span>
               </div>
               <div class="settings-active-model__name" id="cfg-active-model-display">openai/gpt-oss-120b</div>
             </div>
 
-            <h3 class="settings-pane__title">MULTI-API VAULT (KHO KHÓA KẾT NỐI AI)</h3>
-            <p class="settings-pane__desc">Tự động chuyển đổi dự phòng (Auto-Failover) mượt mà khi gặp lỗi hạn ngạch hoặc mạng.</p>
+            <h3 class="settings-pane__title">MULTI-API KEY VAULT</h3>
+            <p class="settings-pane__desc">Seamless automated failover on rate limits or network issues.</p>
 
             <div class="settings-form__group">
-              <label>Groq API Key (Miễn phí & Cực nhanh):</label>
+              <label>Groq API Key (Free & Ultra Fast):</label>
               <div class="settings-input__row">
                 <input id="cfg-groq-key" class="settings-input" type="password" placeholder="gsk_...">
                 <button class="settings-btn is-toggle-pass" type="button" title="Show / Hide">SHOW</button>
@@ -451,7 +455,7 @@ export class SettingsUI {
             </div>
 
             <div class="settings-form__group">
-              <label>OpenAI API Key (Tùy chọn):</label>
+              <label>OpenAI API Key (Optional):</label>
               <div class="settings-input__row">
                 <input id="cfg-openai-key" class="settings-input" type="password" placeholder="sk-proj-...">
                 <button class="settings-btn is-toggle-pass" type="button" title="Show / Hide">SHOW</button>
@@ -463,41 +467,61 @@ export class SettingsUI {
 
             <div class="settings-form__divider"></div>
 
-            <h3 class="settings-pane__title">LỰA CHỌN MÔ HÌNH (MODELS)</h3>
+            <h3 class="settings-pane__title">MODEL SELECTION</h3>
             <div class="settings-grid-2">
               <div class="settings-form__group">
                 <label>Chat Model:</label>
                 <input id="cfg-model-chat" class="settings-input" type="text" placeholder="openai/gpt-oss-120b">
               </div>
               <div class="settings-form__group">
-                <label>Vision Model (Màn hình & Ảnh):</label>
+                <label>Vision Model (Screen & Images):</label>
                 <input id="cfg-model-vision" class="settings-input" type="text" placeholder="gemini-1.5-flash">
               </div>
             </div>
 
             <div class="settings-form__group">
-              <label>STT Model (Nhận diện giọng nói Whisper):</label>
+              <label>STT Model (Whisper Speech Recognition):</label>
               <input id="cfg-model-stt" class="settings-input" type="text" placeholder="whisper-large-v3" value="whisper-large-v3">
             </div>
 
             <div class="settings-form__group">
-              <label>Tên người dùng (Capri xưng hô thân mật):</label>
-              <input id="cfg-user-name" class="settings-input" type="text" placeholder="Tèo" maxlength="32">
+              <label>Operator Nickname (Capri greeting):</label>
+              <input id="cfg-user-name" class="settings-input" type="text" placeholder="Partner" maxlength="32">
+            </div>
+
+            <div class="settings-form__divider"></div>
+
+            <h3 class="settings-pane__title">DISCORD BOT INTEGRATION</h3>
+            <p class="settings-pane__desc">Connect desktop Capri to Discord for voice streaming, two-way chat, and remote controls.</p>
+
+            <div class="settings-form__group">
+              <label>Discord Bot Token:</label>
+              <div class="settings-input__row">
+                <input id="cfg-discord-token" class="settings-input" type="password" placeholder="MTE...">
+                <button class="settings-btn is-toggle-pass" type="button" title="Show / Hide">SHOW</button>
+              </div>
+            </div>
+
+            <div class="settings-form__group">
+              <label>Discord Default / Target User ID:</label>
+              <div class="settings-input__row">
+                <input id="cfg-discord-user-id" class="settings-input" type="text" placeholder="e.g. 123456789012345678">
+              </div>
             </div>
           </section>
 
           <!-- TAB 3: VOICE & AUDIO -->
           <section id="tab-voice" class="settings-modal__pane">
-            <h3 class="settings-pane__title">THIẾT BỊ MICRO & GIỌNG NÓI NEURAL TTS</h3>
-            <p class="settings-pane__desc">Cấu hình thiết bị thu âm giọng nói và bộ phát âm thanh tổng hợp Capri.</p>
+            <h3 class="settings-pane__title">MICROPHONE DEVICE & NEURAL TTS VOICE</h3>
+            <p class="settings-pane__desc">Configure audio input device and synthetic neural speech output.</p>
 
             <div class="settings-form__group">
-              <label>Microphone đầu vào (Microphone Device Selector):</label>
+              <label>Microphone Input Device:</label>
               <select id="cfg-mic-select" class="settings-select"></select>
             </div>
 
             <div class="settings-form__group">
-              <label>Mức âm lượng Micro thực tế:</label>
+              <label>Live Input Volume Meter:</label>
               <div class="settings-meter__wrap">
                 <div id="cfg-mic-meter" class="settings-meter__fill"></div>
               </div>
@@ -508,95 +532,105 @@ export class SettingsUI {
             <div class="settings-form__group">
               <label>Neural TTS Engine:</label>
               <select id="cfg-tts-engine" class="settings-select">
-                <option value="edge-tts">Edge TTS (Giọng tiếng Việt/Anh Hoài My chuẩn tự nhiên)</option>
-                <option value="web-speech">Web Speech Synthesis (Trình duyệt nội bộ)</option>
+                <option value="edge-tts">Edge TTS (Natural Neural Voice)</option>
+                <option value="web-speech">Web Speech Synthesis (Local Browser)</option>
               </select>
             </div>
 
             <div class="settings-form__checkbox-row" style="margin-bottom: 12px;">
               <input id="cfg-tts-toggle" type="checkbox" checked>
-              <label for="cfg-tts-toggle">Bật giọng nói Neural TTS (Khi tắt, Capri chuyển sang chế độ âm thanh glitch/blip)</label>
+              <label for="cfg-tts-toggle">Enable Neural TTS (When disabled, Capri falls back to cyberpunk blips)</label>
             </div>
 
             <div class="settings-form__group">
-              <label>Hiệu ứng Cyber Glitch & Reverb:</label>
+              <label>Cyber Glitch & Reverb FX:</label>
               <div class="settings-slider__row">
                 <input id="cfg-glitch-slider" class="settings-slider" type="range" min="0" max="100" value="25">
                 <span id="cfg-glitch-val" class="settings-slider__val">25%</span>
               </div>
             </div>
 
-            <button id="cfg-test-tts-btn" class="settings-btn" type="button">THỬ NGHIỆM GIỌNG NÓI CAPRI</button>
+            <div class="settings-form__divider"></div>
+
+            <div class="settings-form__group">
+              <label>App VFX Volume (UI Sound Effects & Blips):</label>
+              <div class="settings-slider__row">
+                <input id="cfg-vfx-volume-slider" class="settings-slider" type="range" min="0" max="100" value="80">
+                <span id="cfg-vfx-volume-val" class="settings-slider__val">80%</span>
+              </div>
+            </div>
+
+            <button id="cfg-test-tts-btn" class="settings-btn" type="button">TEST CAPRI VOICE</button>
           </section>
 
           <!-- TAB 4: SYSTEM & ABOUT -->
           <section id="tab-system" class="settings-modal__pane">
-            <h3 class="settings-pane__title">INSTANT REPLAY BUFFER & THỜI GIAN NGỦ</h3>
-            <p class="settings-pane__desc">Quản lý hiệu năng, bộ đệm ghi hình khoảnh khắc và tối ưu hóa tài nguyên phần cứng.</p>
+            <h3 class="settings-pane__title">INSTANT REPLAY BUFFER & HIBERNATION</h3>
+            <p class="settings-pane__desc">Manage hardware performance, clip recorder buffer, and power efficiency.</p>
 
             <div class="settings-form__group">
-              <label>Bộ nhớ đệm Instant Replay (Độ dài clip khoảnh khắc):</label>
+              <label>Instant Replay Buffer (Clip duration):</label>
               <select id="cfg-replay-sec" class="settings-select">
-                <option value="15">15 giây gần nhất</option>
-                <option value="30">30 giây gần nhất (Khuyên dùng)</option>
-                <option value="60">60 giây gần nhất (1 phút)</option>
-                <option value="120">120 giây gần nhất (2 phút)</option>
+                <option value="15">Last 15 seconds</option>
+                <option value="30">Last 30 seconds (Recommended)</option>
+                <option value="60">Last 60 seconds (1 min)</option>
+                <option value="120">Last 120 seconds (2 mins)</option>
               </select>
             </div>
 
             <div class="settings-form__group">
-              <label>Thời gian tự ngủ của Biochip (Hibernation timer - 1 FPS tiết kiệm điện):</label>
+              <label>Biochip Hibernation Timer (1 FPS power saving):</label>
               <select id="cfg-sleep-sec" class="settings-select">
-                <option value="15">15 giây</option>
-                <option value="30">30 giây</option>
-                <option value="60">1 phút</option>
-                <option value="180">3 phút</option>
-                <option value="300">5 phút</option>
-                <option value="0">Không bao giờ ngủ</option>
+                <option value="15">15 seconds</option>
+                <option value="30">30 seconds</option>
+                <option value="60">1 minute</option>
+                <option value="180">3 minutes</option>
+                <option value="300">5 minutes</option>
+                <option value="0">Never hibernate</option>
               </select>
             </div>
 
             <div class="settings-form__group">
-              <label>Thời gian tự thu nhỏ Màn hình chiếu Hologram:</label>
+              <label>Holographic Frame Auto-Dismiss Timer:</label>
               <select id="cfg-hologram-sec" class="settings-select">
-                <option value="8">8 giây (Mặc định)</option>
-                <option value="10">10 giây</option>
-                <option value="20">20 giây</option>
-                <option value="0">Không tự tắt</option>
+                <option value="8">8 seconds (Default)</option>
+                <option value="10">10 seconds</option>
+                <option value="20">20 seconds</option>
+                <option value="0">Never auto-dismiss</option>
               </select>
             </div>
 
             <div class="settings-form__checkbox-row" style="margin-bottom: 16px;">
               <input id="cfg-gamer-pilot" type="checkbox" checked>
-              <label for="cfg-gamer-pilot">Bật Gamer Auto-Pilot (Tự thu nhỏ khi mở Game hoặc Fullscreen, cảnh báo RAM > 90%)</label>
+              <label for="cfg-gamer-pilot">Enable Gamer Auto-Pilot (Auto-stow during full-screen games, RAM > 90% alert)</label>
             </div>
 
             <div class="settings-form__checkbox-row" style="margin-bottom: 16px;">
               <input id="cfg-discord-rpc" type="checkbox" checked>
-              <label for="cfg-discord-rpc">Discord Local Rich Presence (Hiển thị trạng thái Capri qua Named Pipe)</label>
+              <label for="cfg-discord-rpc">Discord Local Rich Presence (Show Capri status via Named Pipe)</label>
             </div>
 
             <div class="settings-form__divider"></div>
 
-            <h3 class="settings-pane__title">ANTIGRAVITY AGENT HOOK & TÍCH HỢP NỘI BỘ</h3>
+            <h3 class="settings-pane__title">ANTIGRAVITY AGENT HOOK & INTERNAL INTEGRATION</h3>
             <div class="settings-form__checkbox-row" style="margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between;">
               <div style="display: flex; align-items: center; gap: 8px;">
                 <input id="cfg-agent-hook" type="checkbox">
-                <label for="cfg-agent-hook">Antigravity Agent Hook (BẬT / TẮT)</label>
+                <label for="cfg-agent-hook">Antigravity Agent Hook (ON / OFF)</label>
               </div>
               <button id="cfg-test-agent-hook" class="settings-btn settings-btn--ghost" type="button" style="padding: 4px 10px; font-size: 11px;">TEST AGENT HOOK</button>
             </div>
             <p class="settings-pane__desc" style="margin-bottom: 16px; font-size: 11px; color: var(--paper-2);">
-              Cổng 127.0.0.1:43225 (In-Process Webhook - Tự động theo dõi file và Antigravity Tasks)
+              Port 127.0.0.1:43225 (In-Process Webhook - Automated file & Antigravity task tracking)
             </p>
 
             <div class="settings-form__divider"></div>
 
-            <h3 class="settings-pane__title">QUẢN LÝ DỮ LIỆU & LỊCH SỬ TRÒ CHUYỆN</h3>
-            <p class="settings-pane__desc">Xóa vĩnh viễn toàn bộ lịch sử trò chuyện đã lưu trên máy tính.</p>
+            <h3 class="settings-pane__title">DATA & CONVERSATION HISTORY</h3>
+            <p class="settings-pane__desc">Permanently wipe local chat history from disk.</p>
 
             <div style="margin-bottom: 18px;">
-              <button id="cfg-clear-history-btn" class="settings-btn is-danger" type="button">XÓA LỊCH SỬ CHAT (CLEAR CHAT HISTORY)</button>
+              <button id="cfg-clear-history-btn" class="settings-btn is-danger" type="button">CLEAR CHAT HISTORY</button>
               <div id="cfg-clear-history-status" class="settings-status-box" hidden></div>
             </div>
           </section>
@@ -604,11 +638,11 @@ export class SettingsUI {
 
         <footer class="settings-modal__footer">
           <div class="settings-modal__about">
-            <span id="cfg-app-version" class="settings-about__version">v1.4.0-cyberpunk-edition</span>
+            <span id="cfg-app-version" class="settings-about__version">v1.5.0-cyberpunk-edition</span>
             <span class="settings-about__sep">|</span>
-            <a id="cfg-repo-link" class="settings-about__link" href="#" title="Mở trang mã nguồn gốc trên GitHub">GitHub: mochiiwuff/capri-desktop</a>
+            <a id="cfg-repo-link" class="settings-about__link" href="#" title="Open Capri repository on GitHub">GitHub: lostempyrea/Capri-desktop</a>
           </div>
-          <button id="cfg-save-btn" class="settings-btn is-primary" type="button">LƯU CẤU HÌNH</button>
+          <button id="cfg-save-btn" class="settings-btn is-primary" type="button">SAVE SETTINGS</button>
         </footer>
       </div>
     `;
@@ -898,6 +932,16 @@ export class SettingsUI {
       glitchVal.textContent = `${e.target.value}%`;
     });
 
+    // App VFX Volume Slider
+    const vfxSlider = modal.querySelector('#cfg-vfx-volume-slider');
+    const vfxVal = modal.querySelector('#cfg-vfx-volume-val');
+    vfxSlider?.addEventListener('input', (e) => {
+      e.stopPropagation();
+      const val = Number(e.target.value);
+      if (vfxVal) vfxVal.textContent = `${val}%`;
+      this.voice?.setVfxVolume?.(val / 100);
+    });
+
     // Long-Term Memory (me.md) Save Button
     const saveMemBtn = modal.querySelector('#cfg-memory-save-btn');
     const memArea = modal.querySelector('#cfg-user-memory-text');
@@ -906,14 +950,14 @@ export class SettingsUI {
       e.stopPropagation();
       const text = memArea?.value || '';
       saveMemBtn.disabled = true;
-      saveMemBtn.textContent = 'ĐANG LƯU...';
+      saveMemBtn.textContent = 'SAVING...';
       const res = await this.host.saveMemory(text);
       saveMemBtn.disabled = false;
-      saveMemBtn.textContent = 'LƯU KÝ ỨC';
+      saveMemBtn.textContent = 'SAVE MEMORY';
       if (memStatus) {
-        memStatus.textContent = res?.ok ? 'Đã lưu ký ức me.md thành công!' : 'Lỗi khi lưu ký ức!';
+        memStatus.textContent = res?.ok ? 'Saved me.md memory successfully!' : 'Error saving memory!';
         setTimeout(() => {
-          memStatus.textContent = 'Tự động nạp vào bộ não AI của Capri trong mọi cuộc hội thoại.';
+          memStatus.textContent = 'Automatically injected into Capri\'s AI mind during conversations.';
         }, 3000);
       }
     });
@@ -940,7 +984,7 @@ export class SettingsUI {
     modal.querySelector('#cfg-repo-link')?.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      const url = 'https://github.com/mochiiwuff/capri-desktop/tree/main';
+      const url = 'https://github.com/lostempyrea/Capri-desktop';
       if (this.host.openExternal) this.host.openExternal(url);
       else window.open(url, '_blank');
     });
@@ -1011,7 +1055,7 @@ export class SettingsUI {
     // Load config
     this.config = await this.host.getConfig();
     this.populateForm();
-    this.applyLanguage(this.config?.lang || document.documentElement.lang || 'vi');
+    this.applyLanguage('en');
     await this.populateMics();
     this.startMicMeter();
 
@@ -1054,6 +1098,12 @@ export class SettingsUI {
     modal.querySelector('#cfg-openrouter-key').value = c.apiVault?.providers?.openrouter?.apiKey || '';
     modal.querySelector('#cfg-openai-key').value = c.apiVault?.providers?.openai?.apiKey || '';
 
+    // Discord Integration fields
+    const discordTokenInput = modal.querySelector('#cfg-discord-token');
+    if (discordTokenInput) discordTokenInput.value = c.discordToken || '';
+    const discordUserIdInput = modal.querySelector('#cfg-discord-user-id');
+    if (discordUserIdInput) discordUserIdInput.value = c.discordUserId || '';
+
     modal.querySelector('#cfg-model-chat').value = activeModel;
     modal.querySelector('#cfg-model-vision').value = c.apiVault?.activeModels?.vision || 'gemini-1.5-flash';
     const sttModel = modal.querySelector('#cfg-model-stt');
@@ -1065,6 +1115,14 @@ export class SettingsUI {
     const glitchPct = Math.round((c.voice?.glitchReverb ?? 0.25) * 100);
     modal.querySelector('#cfg-glitch-slider').value = glitchPct;
     modal.querySelector('#cfg-glitch-val').textContent = `${glitchPct}%`;
+
+    // App VFX Volume Slider
+    const vfxVol = (typeof c.vfxVolume === 'number') ? c.vfxVolume : ((typeof c.voice?.vfxVolume === 'number') ? c.voice.vfxVolume : 0.8);
+    const vfxPct = Math.round(vfxVol * 100);
+    const vfxSlider = modal.querySelector('#cfg-vfx-volume-slider');
+    const vfxVal = modal.querySelector('#cfg-vfx-volume-val');
+    if (vfxSlider) vfxSlider.value = vfxPct;
+    if (vfxVal) vfxVal.textContent = `${vfxPct}%`;
 
     const op = (c.system?.opacity ?? 0.95);
     const opPct = Math.round(op * 100);
@@ -1144,6 +1202,9 @@ export class SettingsUI {
     const agentHookCheck = modal.querySelector('#cfg-agent-hook');
     if (agentHookCheck) agentHookCheck.checked = c.agentHookEnabled ?? false;
 
+    const wanderCheck = modal.querySelector('#cfg-wander-idle');
+    if (wanderCheck) wanderCheck.checked = c.system?.wanderWhenIdle ?? c.wanderWhenIdle ?? true;
+
     modal.querySelector('#cfg-replay-sec').value = String(c.system?.replaySeconds || 30);
     modal.querySelector('#cfg-sleep-sec').value = String(c.system?.inactivitySleepSec || 30);
     modal.querySelector('#cfg-hologram-sec').value = String(c.system?.hologramDismissSec || 8);
@@ -1160,7 +1221,7 @@ export class SettingsUI {
 
   async populateMics() {
     const select = this.modalEl.querySelector('#cfg-mic-select');
-    select.innerHTML = '<option value="">(Mặc định hệ thống)</option>';
+    select.innerHTML = '<option value="">(Default Audio Input)</option>';
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
       const audioInputs = devices.filter((d) => d.kind === 'audioinput');
@@ -1198,13 +1259,20 @@ export class SettingsUI {
   async save() {
     const modal = this.modalEl;
     const saveBtn = modal.querySelector('#cfg-save-btn');
-    saveBtn.textContent = 'ĐANG LƯU...';
+    saveBtn.textContent = 'SAVING...';
+
+    const vfxVol = Number(modal.querySelector('#cfg-vfx-volume-slider')?.value || 80) / 100;
+    const discordToken = modal.querySelector('#cfg-discord-token')?.value.trim() || '';
+    const discordUserId = modal.querySelector('#cfg-discord-user-id')?.value.trim() || '';
 
     const patch = {
-      lang: modal.querySelector('#cfg-lang-select')?.value || 'vi',
+      lang: 'en',
+      vfxVolume: vfxVol,
+      discordToken,
+      discordUserId,
       agentHookEnabled: modal.querySelector('#cfg-agent-hook')?.checked ?? false,
       user: {
-        name: modal.querySelector('#cfg-user-callsign')?.value.trim() || modal.querySelector('#cfg-user-name')?.value.trim() || 'Tèo',
+        name: modal.querySelector('#cfg-user-callsign')?.value.trim() || modal.querySelector('#cfg-user-name')?.value.trim() || 'Partner',
         callsign: modal.querySelector('#cfg-user-callsign')?.value.trim() || '',
         randomNick: modal.querySelector('#cfg-user-random-nick')?.checked ?? true,
         avatar: this.currentUserAvatar || ''
@@ -1226,9 +1294,11 @@ export class SettingsUI {
         engine: modal.querySelector('#cfg-tts-engine').value,
         glitchReverb: Number(modal.querySelector('#cfg-glitch-slider').value) / 100,
         inputDeviceId: modal.querySelector('#cfg-mic-select').value || null,
-        ttsEnabled: modal.querySelector('#cfg-tts-toggle').checked
+        ttsEnabled: modal.querySelector('#cfg-tts-toggle').checked,
+        vfxVolume: vfxVol,
       },
       system: {
+        wanderWhenIdle: modal.querySelector('#cfg-wander-idle')?.checked ?? true,
         replaySeconds: Number(modal.querySelector('#cfg-replay-sec').value),
         inactivitySleepSec: Number(modal.querySelector('#cfg-sleep-sec').value),
         hologramDismissSec: Number(modal.querySelector('#cfg-hologram-sec').value),
@@ -1237,7 +1307,7 @@ export class SettingsUI {
         opacity: Number(modal.querySelector('#cfg-opacity-slider').value) / 100,
         blurPx: Number(modal.querySelector('#cfg-blur-slider')?.value || 16),
         theme: modal.querySelector('#cfg-theme-select').value,
-        userName: modal.querySelector('#cfg-user-callsign')?.value.trim() || modal.querySelector('#cfg-user-name')?.value.trim() || 'Tèo',
+        userName: modal.querySelector('#cfg-user-callsign')?.value.trim() || modal.querySelector('#cfg-user-name')?.value.trim() || 'Partner',
         tickerPosition: {
           preset: modal.querySelector('#cfg-ticker-preset')?.value || 'top-left',
           offsetX: Number(modal.querySelector('#cfg-ticker-offset-x')?.value || 0),
@@ -1256,7 +1326,11 @@ export class SettingsUI {
       localStorage.setItem('capri.tickerPosition', JSON.stringify(patch.system.tickerPosition));
     } catch {}
     this.host.toggleAgentHook?.(patch.agentHookEnabled);
-    this.voice.configure({ ttsEnabled: patch.voice.ttsEnabled });
+    this.voice.setVfxVolume?.(patch.vfxVolume);
+    this.voice.configure({ ttsEnabled: patch.voice.ttsEnabled, vfxVolume: patch.vfxVolume });
+    if (this.host?.restartDiscord) {
+      try { this.host.restartDiscord(); } catch {}
+    }
     document.documentElement.dataset.theme = patch.system.theme;
     document.documentElement.style.setProperty('--holo-opacity', patch.system.opacity);
     document.documentElement.style.setProperty('--holo-blur', `${patch.system.blurPx}px`);
@@ -1265,16 +1339,18 @@ export class SettingsUI {
 
     this.voice.play('done');
 
-    const isEn = (patch.lang === 'en' || document.documentElement.lang === 'en');
-    saveBtn.textContent = isEn ? '[ OK ] SAVED SUCCESSFULLY!' : '[ OK ] ĐÃ LƯU THÀNH CÔNG!';
+    saveBtn.textContent = '[ OK ] SAVED SUCCESSFULLY!';
     setTimeout(() => {
-      saveBtn.textContent = isEn ? 'SAVE SETTINGS' : 'LƯU CẤU HÌNH';
+      saveBtn.textContent = 'SAVE SETTINGS';
       this.close();
     }, 800);
   }
 
-  applyLanguage(lang = 'vi') {
-    const t = I18N_SETTINGS[lang] || I18N_SETTINGS.vi;
+  applyLanguage(lang = 'en') {
+    document.documentElement.lang = 'en';
+    if (this.brain) this.brain.lang = 'en';
+    if (this.panel) this.panel.updateI18n?.('en');
+    const t = I18N_SETTINGS.en || I18N_SETTINGS.vi;
     const modal = this.modalEl;
     if (!modal) return;
 
@@ -1284,7 +1360,7 @@ export class SettingsUI {
 
     // Tabs
     const tabUser = modal.querySelector('.settings-modal__tab[data-tab="tab-user"]');
-    if (tabUser) tabUser.textContent = t.tabs.user || 'HỒ SƠ';
+    if (tabUser) tabUser.textContent = t.tabs.user || 'PROFILE';
     const tabApp = modal.querySelector('.settings-modal__tab[data-tab="tab-appearance"]');
     if (tabApp) tabApp.textContent = t.tabs.appearance;
     const tabAi = modal.querySelector('.settings-modal__tab[data-tab="tab-ai"]');
