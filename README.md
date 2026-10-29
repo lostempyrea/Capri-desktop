@@ -152,7 +152,7 @@ npm run shortcut
 | :--- | :--- | :--- |
 | **Wake Up / Listen** | `"Hey Capri"`, `"Hi Capri"`, `"Capri ơi"` | Click Mic `🎙️` |
 | **Instant Replay Clip** | `"record that"`, `"clip that"` | — |
-| **Open Chat & Settings** | Click Biochip Core | `Ctrl + Shift + C` |
+| **Open Chat & Settings** | Click Biochip Core | `Ctrl + Alt + C` |
 | **Quick Prompt** | Hover over Biochip -> Type in Quick-Input | `Enter` |
 | **Drag Status Ticker** | Mouse Drag or `Alt + Click Drag` | — |
 | **Toggle Mute** | `"mute"`, `"im lặng đi"` | Tray Menu |
