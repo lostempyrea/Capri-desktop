@@ -7,6 +7,8 @@
 const { execFile } = require('node:child_process');
 const { launchApp, find, list } = require('./apps');
 
+const SAFE_NAME_RE = /^[\p{L}\p{N}\s._-]+$/u;
+
 function powershell(script) {
   return new Promise((resolve, reject) => {
     execFile('powershell.exe', [
@@ -20,13 +22,15 @@ function powershell(script) {
  * Switch focus to an active window by process name or window title
  */
 async function switchApp(target) {
-  if (process.platform !== 'win32') return { ok: false, error: 'Chỉ hỗ trợ trên Windows' };
+  if (process.platform !== 'win32') return { ok: false, error: 'Windows only' };
   const clean = String(target || '').trim();
-  if (!clean) return { ok: false, error: 'Thiếu tên ứng dụng cần chuyển' };
+  if (!clean) return { ok: false, error: 'Missing application name' };
+  if (!SAFE_NAME_RE.test(clean)) return { ok: false, error: 'Invalid application name: contains unsafe characters' };
 
   try {
+    const escaped = clean.replace(/'/g, "''");
     const ps = `
-$target = "${clean.replace(/"/g, '`"')}"
+$target = '${escaped}'
 $p = Get-Process | Where-Object { $_.MainWindowHandle -ne 0 -and ($_.ProcessName -like "*$target*" -or $_.MainWindowTitle -like "*$target*") } | Select-Object -First 1
 if ($p) {
   $wsh = New-Object -ComObject WScript.Shell
@@ -38,9 +42,9 @@ if ($p) {
 `;
     const res = await powershell(ps);
     if (res.includes('OK')) {
-      return { ok: true, message: `Đã chuyển sang ${clean}` };
+      return { ok: true, message: `Switched to ${clean}` };
     }
-    return { ok: false, error: `Không tìm thấy cửa sổ đang mở của "${clean}"` };
+    return { ok: false, error: `Open window for "${clean}" not found` };
   } catch (err) {
     return { ok: false, error: err.message };
   }
@@ -50,11 +54,13 @@ if ($p) {
  * Minimize an active application window safely
  */
 async function minimizeApp(target) {
-  if (process.platform !== 'win32') return { ok: false, error: 'Chỉ hỗ trợ trên Windows' };
+  if (process.platform !== 'win32') return { ok: false, error: 'Windows only' };
   const clean = String(target || '').trim();
-  if (!clean) return { ok: false, error: 'Thiếu tên ứng dụng' };
+  if (!clean) return { ok: false, error: 'Missing application name' };
+  if (!SAFE_NAME_RE.test(clean)) return { ok: false, error: 'Invalid application name: contains unsafe characters' };
 
   try {
+    const escaped = clean.replace(/'/g, "''");
     const ps = `
 Add-Type @"
 using System;
@@ -63,7 +69,7 @@ public class WinApi {
   [DllImport("user32.dll")] public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
 }
 "@
-$target = "${clean.replace(/"/g, '`"')}"
+$target = '${escaped}'
 $p = Get-Process | Where-Object { $_.MainWindowHandle -ne 0 -and ($_.ProcessName -like "*$target*" -or $_.MainWindowTitle -like "*$target*") } | Select-Object -First 1
 if ($p) {
   [WinApi]::ShowWindowAsync($p.MainWindowHandle, 2) # SW_SHOWMINIMIZED
@@ -74,9 +80,9 @@ if ($p) {
 `;
     const res = await powershell(ps);
     if (res.includes('OK')) {
-      return { ok: true, message: `Đã thu nhỏ ${clean}` };
+      return { ok: true, message: `Minimized ${clean}` };
     }
-    return { ok: false, error: `Không tìm thấy cửa sổ "${clean}"` };
+    return { ok: false, error: `Window "${clean}" not found` };
   } catch (err) {
     return { ok: false, error: err.message };
   }
@@ -86,7 +92,7 @@ if ($p) {
  * Send keyboard shortcut safely (e.g. "ctrl+c", "ctrl+v", "alt+tab", "win+d")
  */
 async function sendShortcut(combo) {
-  if (process.platform !== 'win32') return { ok: false, error: 'Chỉ hỗ trợ trên Windows' };
+  if (process.platform !== 'win32') return { ok: false, error: 'Windows only' };
   const clean = String(combo || '').toLowerCase().trim();
 
   // Mapping common shortcut names to SendKeys syntax
@@ -111,7 +117,7 @@ async function sendShortcut(combo) {
 
   const sendKey = mapping[clean];
   if (!sendKey) {
-    return { ok: false, error: `Phím tắt "${combo}" không nằm trong danh sách an toàn.` };
+    return { ok: false, error: `Shortcut "${combo}" is not in the allowed list.` };
   }
 
   try {
@@ -131,13 +137,13 @@ Write-Output "OK"
  * Safe power management: lock or sleep (never raw immediate shutdown)
  */
 async function systemPower(action) {
-  if (process.platform !== 'win32') return { ok: false, error: 'Chỉ hỗ trợ trên Windows' };
+  if (process.platform !== 'win32') return { ok: false, error: 'Windows only' };
   const act = String(action || '').toLowerCase().trim();
 
   if (act === 'lock' || act === 'khóa') {
     try {
       await powershell('rundll32.exe user32.dll,LockWorkStation');
-      return { ok: true, message: 'Đã khóa màn hình máy tính.' };
+      return { ok: true, message: 'Locked workstation screen.' };
     } catch (err) {
       return { ok: false, error: err.message };
     }
@@ -146,13 +152,13 @@ async function systemPower(action) {
   if (act === 'sleep' || act === 'ngủ') {
     try {
       await powershell('rundll32.exe powrprof.dll,SetSuspendState 0,1,0');
-      return { ok: true, message: 'Máy tính đang chuyển sang chế độ Sleep.' };
+      return { ok: true, message: 'Entering system sleep mode.' };
     } catch (err) {
       return { ok: false, error: err.message };
     }
   }
 
-  return { ok: false, error: `Hành động power "${action}" không được hỗ trợ hoặc tiềm ẩn nguy cơ.` };
+  return { ok: false, error: `Power action "${action}" is not supported or unsafe.` };
 }
 
 module.exports = {

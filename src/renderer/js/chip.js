@@ -56,6 +56,9 @@ class Small {
     this.visible = true;
     this.canvas.hidden = false;
     this.canvas.style.pointerEvents = 'auto';
+    this.canvas.style.removeProperty('opacity');
+    this.canvas.style.removeProperty('visibility');
+    this.canvas.style.removeProperty('pointer-events');
     this.shownAt = performance.now();
     requestAnimationFrame(this.loop);
   }
@@ -74,6 +77,10 @@ class Small {
 
   loop(now) {
     if (!this.visible) return;
+    if (this.miniState === 'hibernated') {
+      setTimeout(() => this.loop(performance.now()), 1000);
+      return;
+    }
     requestAnimationFrame(this.loop);
     if (now - this.last < STEP - 1) return;
     this.last = now;
@@ -1073,9 +1080,13 @@ export class Chip extends Small {
   }
 
   show() {
-    if (this.visible) return;
+    if (this.visible && this.canvas.style.opacity !== '0') return;
     this.visible = true;
     this.canvas.hidden = false;
+    this.canvas.style.display = 'block';
+    this.canvas.style.opacity = '1';
+    this.canvas.style.visibility = 'visible';
+    this.canvas.style.pointerEvents = 'auto';
     this.shownAt = performance.now();
     if (this.miniState === 'hibernated') {
       this.scheduleSleepLoop();
@@ -1088,6 +1099,10 @@ export class Chip extends Small {
     this.hideSpeech();
     this.visible = false;
     this.canvas.hidden = true;
+    this.canvas.style.display = 'none';
+    this.canvas.style.opacity = '0';
+    this.canvas.style.visibility = 'hidden';
+    this.canvas.style.pointerEvents = 'none';
     if (this.rafId) {
       cancelAnimationFrame(this.rafId);
       this.rafId = null;

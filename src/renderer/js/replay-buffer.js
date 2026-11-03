@@ -195,6 +195,12 @@ export class InstantReplayBuffer {
                 while (this.completedSegments.length > this.maxSegments) {
                   this.completedSegments.shift();
                 }
+                // Hard cap of 120MB
+                let totalSize = this.completedSegments.reduce((sum, b) => sum + b.size, 0);
+                while (totalSize > 120 * 1024 * 1024 && this.completedSegments.length > 0) {
+                  const removed = this.completedSegments.shift();
+                  totalSize -= removed.size;
+                }
               }
             }
             this.currentChunks = [];

@@ -8,7 +8,7 @@ const {
   clipboard, ClipboardItem, desktopCapturer,
 } = require('electron');
 
-const config = require('./config');
+const config = require('./config-store');
 const { TRAY, LANGS } = require('./labels');
 const { createBridge } = require('./bridge');
 const { startWindowWatch, getLedgesOnce } = require('./windows');
@@ -23,7 +23,7 @@ const { DiscordBridge } = require('./discord');
 const stt = require('./stt');
 const screenCapture = require('./screen-capture');
 const assistantTools = require('./assistant-tools');
-const configStore = require('./config-store');
+const configStore = config;
 const tts = require('./tts');
 const aiVault = require('./ai-vault');
 const hardwareGuardian = require('./hardware-guardian');

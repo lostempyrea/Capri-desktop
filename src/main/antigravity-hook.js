@@ -150,6 +150,9 @@ class AntigravityHook {
       return;
     }
 
+    // Ensure clean state before starting
+    this.stop();
+
     this.onActivity = onActivity || null;
 
     // 1. Start In-Process HTTP Webhook Server (Port 43225)

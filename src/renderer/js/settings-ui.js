@@ -648,7 +648,7 @@ export class SettingsUI {
 
         <footer class="settings-modal__footer">
           <div class="settings-modal__about">
-            <span id="cfg-app-version" class="settings-about__version">v1.5.2-cyberpunk-edition</span>
+            <span id="cfg-app-version" class="settings-about__version">v1.5.3-cyberpunk-edition</span>
             <span class="settings-about__sep">|</span>
             <a id="cfg-repo-link" class="settings-about__link" href="#" title="Open Capri repository on GitHub">GitHub: lostempyrea/Capri-desktop</a>
           </div>

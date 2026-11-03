@@ -92,3 +92,40 @@ node hooks/pre-start-check.js
 node hooks/post-audit.js
 ```
 Kết quả mong đợi: Cả hai lệnh đều trả về exit code `0` với thông báo `PASS` trên toàn bộ các tiêu chí.
+
+---
+
+## 5. Tích Hợp VSCode (Extension / Tasks)
+
+Capri hiện hỗ trợ nhận hook trực tiếp từ môi trường VSCode.
+
+### Thiết lập Hook
+Script hook đã được tạo tại: `hooks/vscode-hook.js`.
+
+### Cách Kích Hoạt
+Bạn có thể tích hợp vào VSCode thông qua `.vscode/tasks.json` hoặc sử dụng các tiện ích mở rộng như "Run on Save".
+
+**Ví dụ cấu hình `tasks.json` để báo trạng thái EDITING:**
+```json
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Capri Notify",
+      "type": "shell",
+      "command": "node hooks/vscode-hook.js ${input:eventName} ${fileBasename}",
+      "presentation": { "reveal": "silent" }
+    }
+  ],
+  "inputs": [
+    {
+      "id": "eventName",
+      "type": "promptString",
+      "description": "Event name (e.g., vscode:editing)"
+    }
+  ]
+}
+```
+
+Script này được thiết kế để không gây ảnh hưởng đến hiệu năng của VSCode nếu Capri không đang chạy.
+

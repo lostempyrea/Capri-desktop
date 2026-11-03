@@ -1,0 +1,12 @@
+# Capri Desktop Rules for Cline
+
+- Follow "Zero Root Pollution Rule": Do not create files in the root directory. Use `docs/`, `scripts/`, etc.
+- Follow "Strict Folder Responsibility":
+    - `src/main/`: Electron Main Process, hooks, bridge. No UI code.
+    - `src/renderer/`: HUD, Biochip, UI, assets.
+    - `hooks/`: Integration scripts.
+    - `scripts/`: Build/Test tools.
+- Coding Standards:
+    - UI/HUD text: 100% English (`en`).
+    - Security: No hardcoded API keys. Use `config.json` or environment variables.
+- Always create a backup in `_backups/` before modifying existing code.

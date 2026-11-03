@@ -220,15 +220,20 @@ function scanShortcuts() {
   return shortcuts;
 }
 
+const SAFE_NAME_RE = /^[\p{L}\p{N}\s._-]+$/u;
+
 // Launches any application installed on Windows (by known app mapping or Start Menu .lnk)
 async function launchApp(appName) {
   if (process.platform !== 'win32') {
-    return { ok: false, error: 'Chỉ hỗ trợ mở ứng dụng trên Windows!' };
+    return { ok: false, error: 'Windows only' };
   }
   const raw = String(appName || '').trim();
   const key = simple(raw);
   if (!key) {
-    return { ok: false, error: 'Vui lòng cung cấp tên ứng dụng cần mở!' };
+    return { ok: false, error: 'Please provide an application name to open' };
+  }
+  if (!SAFE_NAME_RE.test(raw)) {
+    return { ok: false, error: 'Invalid application name: contains unsafe characters' };
   }
 
   // 1. Check known apps
@@ -238,7 +243,7 @@ async function launchApp(appName) {
       if (app.protocol) {
         await shell.openExternal(app.protocol);
       } else {
-        await powershell(`Start-Process -FilePath "${app.cmd}" -ErrorAction Stop`);
+        await powershell(`Start-Process -FilePath '${app.cmd.replace(/'/g, "''")}' -ErrorAction Stop`);
       }
       return { ok: true, name: app.name };
     } catch (err) {
@@ -263,22 +268,22 @@ async function launchApp(appName) {
     try {
       const err = await shell.openPath(matched.path);
       if (err) {
-        await powershell(`Start-Process -FilePath "${matched.path.replace(/"/g, '`"')}"`);
+        await powershell(`Start-Process -FilePath '${matched.path.replace(/'/g, "''")}'`);
       }
       return { ok: true, name: matched.name, path: matched.path };
     } catch (err) {
-      return { ok: false, error: `Lỗi khi mở ${matched.name}: ${err.message}` };
+      return { ok: false, error: `Error opening ${matched.name}: ${err.message}` };
     }
   }
 
   // 3. Fallback: try powershell Start-Process with raw name
   try {
-    await powershell(`Start-Process -FilePath "${raw.replace(/"/g, '`"')}" -ErrorAction Stop`);
+    await powershell(`Start-Process -FilePath '${raw.replace(/'/g, "''")}' -ErrorAction Stop`);
     return { ok: true, name: raw };
   } catch {
     return {
       ok: false,
-      error: `Không tìm thấy ứng dụng "${raw}" trên máy của bạn.`,
+      error: `Application "${raw}" not found on your system.`,
     };
   }
 }
